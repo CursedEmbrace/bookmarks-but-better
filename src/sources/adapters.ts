@@ -43,6 +43,7 @@ function createFirefoxAdapter(): BrowserAdapter {
     storage: new FirefoxStorageAdapter(),
     favicon: new FirefoxFaviconAdapter(),
     capabilities: {
+      separators: true,
       openInManager: false,
       move: true,
       reorder: true,

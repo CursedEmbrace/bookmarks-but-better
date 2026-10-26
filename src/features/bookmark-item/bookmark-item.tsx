@@ -151,6 +151,17 @@ export const BookmarkItem = React.memo(function BookmarkItem({
           <HoverCardContent side="bottom" className="w-64">
             <HoverCardBody
               bookmark={bookmark}
+              onInsertSeparator={
+                adapter?.capabilities.separators &&
+                adapter.bookmarks.createSeparator &&
+                !folderReadOnly &&
+                !orderReadOnly
+                  ? () =>
+                      void useBookmarkStore
+                        .getState()
+                        .createSeparator(folderId, bookmark.id)
+                  : undefined
+              }
               onEdit={handleEdit}
               onCopyUrl={handleCopyUrl}
               onDelete={handleDelete}
@@ -189,6 +200,17 @@ export const BookmarkItem = React.memo(function BookmarkItem({
         <HoverCardContent side="right" className="w-72">
           <HoverCardBody
             bookmark={bookmark}
+            onInsertSeparator={
+              adapter?.capabilities.separators &&
+              adapter.bookmarks.createSeparator &&
+              !folderReadOnly &&
+              !orderReadOnly
+                ? () =>
+                    void useBookmarkStore
+                      .getState()
+                      .createSeparator(folderId, bookmark.id)
+                : undefined
+            }
             onEdit={handleEdit}
             onCopyUrl={handleCopyUrl}
             onDelete={handleDelete}
@@ -207,11 +229,13 @@ const HoverCardBody = React.memo(function HoverCardBody({
   onCopyUrl,
   onDelete,
   onOpenInManager,
+  onInsertSeparator,
 }: {
   bookmark: BookmarkNode
   onEdit: (e: React.MouseEvent) => void
   onCopyUrl: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
+  onInsertSeparator?: () => void
   onOpenInManager?: (e: React.MouseEvent) => void
 }) {
   const isReadOnly = bookmark.readOnly ?? false
@@ -224,6 +248,11 @@ const HoverCardBody = React.memo(function HoverCardBody({
         <div className="truncate text-xs text-muted-foreground">
           {bookmark.url}
         </div>
+      )}
+      {onInsertSeparator && (
+        <Button variant="ghost" size="sm" onClick={onInsertSeparator}>
+          Insert separator below
+        </Button>
       )}
       <div className="flex items-center gap-1 pt-1">
         <Tooltip>

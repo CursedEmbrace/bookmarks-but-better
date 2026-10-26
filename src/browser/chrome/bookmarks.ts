@@ -1,10 +1,14 @@
 import type { BookmarkAdapter, BookmarkNode } from "../types"
 
-function toBookmarkNode(node: chrome.bookmarks.BookmarkTreeNode): BookmarkNode {
+export function toBookmarkNode(
+  node: chrome.bookmarks.BookmarkTreeNode & { type?: BookmarkNode["type"] }
+): BookmarkNode {
   return {
     id: node.id,
     title: node.title,
-    url: node.url,
+    type: node.type,
+    // Firefox supplies a compatibility `data:` URL for native separators.
+    url: node.type === "separator" ? undefined : node.url,
     parentId: node.parentId,
     dateAdded: node.dateAdded,
     children: node.children?.map(toBookmarkNode),

@@ -234,7 +234,7 @@ describe("planBookmarkReorder", () => {
       kind: "move",
       id: "b1",
       parentId: "work",
-      index: 1,
+      index: 2,
     })
   })
 

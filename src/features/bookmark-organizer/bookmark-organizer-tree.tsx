@@ -236,6 +236,11 @@ const BookmarkOrganizerTreeImpl = React.forwardRef<
   const openCreateItem = useUIStore((s) => s.openCreateItem)
   const moveBookmark = useBookmarkStore((s) => s.moveBookmark)
   const setChildOrder = useBookmarkStore((s) => s.setChildOrder)
+  const separatorsEnabled = useBookmarkStore(
+    (s) =>
+      s.adapter?.capabilities.separators &&
+      !!s.adapter.bookmarks.createSeparator
+  )
   const dragEnabled = moveEnabled || reorderEnabled || setChildOrderEnabled
   const reorderAllowed = reorderEnabled || setChildOrderEnabled
 
@@ -488,12 +493,41 @@ const BookmarkOrganizerTreeImpl = React.forwardRef<
           item={item}
           isDragging={draggedItemIds.has(item.getId())}
           dragEnabled={dragEnabled}
+          onCreateSeparator={
+            separatorsEnabled &&
+            !item.getItemData()?.readOnly &&
+            !item.getItemData()?.orderReadOnly
+              ? async () => {
+                  const data = item.getItemData()
+                  if (!data) return
+                  const parentId =
+                    data.kind === "folder"
+                      ? data.id
+                      : (data.parentId ?? item.getParent()?.getId())
+                  if (!parentId) return
+                  const created = await useBookmarkStore
+                    .getState()
+                    .createSeparator(
+                      parentId,
+                      data.kind === "folder" ? undefined : data.id
+                    )
+                  if (created)
+                    await tree
+                      .getItemInstance(
+                        parentId === effectiveRootId
+                          ? BOOKMARK_ORGANIZER_ROOT_ID
+                          : parentId
+                      )
+                      .invalidateChildrenIds(true)
+                }
+              : undefined
+          }
           onCreateItem={(type) => {
             openCreateItem({ type, parentId: item.getId() })
           }}
           onRename={async (treeItem) => {
             const itemData = treeItem.getItemData()
-            if (!itemData) {
+            if (!itemData || itemData.kind === "separator") {
               return
             }
 

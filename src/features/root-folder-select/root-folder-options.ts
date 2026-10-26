@@ -24,7 +24,7 @@ function collectFolderPaths(
   }
 
   for (const child of node.children ?? []) {
-    if (child.url === undefined) {
+    if (child.url === undefined && child.type !== "separator") {
       result.push(...collectFolderPaths(child, currentPath))
     }
   }

@@ -2,6 +2,8 @@ import type { BookmarkAdapter } from "@/browser"
 import type { ConflictResolution, ImportPlanNode } from "./import-plan"
 
 export interface ImportResult {
+  /** Native separators created, omitted when none were imported. */
+  separators?: number
   /** Folders created. Folders merged into an existing one are not counted. */
   folders: number
   /** Folders that landed inside an existing folder of the same name. */
@@ -142,6 +144,44 @@ export async function executeImportPlan(
   }
 
   async function write(level: ImportPlanNode[], target: string): Promise<void> {
+    // A separator gives sibling order meaning. Await each append in these
+    // folders: concurrent creates may be processed in any order by Firefox.
+    if (level.some((node) => node.kind === "separator")) {
+      for (const node of level) {
+        if (node.kind === "bookmark") {
+          await writeBookmark(node, target)
+        } else if (node.kind === "separator") {
+          try {
+            if (!bookmarks.createSeparator)
+              throw new Error(
+                "This source does not support bookmark separators"
+              )
+            await limit(() => bookmarks.createSeparator!(target))
+            result.separators = (result.separators ?? 0) + 1
+          } catch (error) {
+            record(error, 1)
+          }
+        } else {
+          let id = node.existingId
+          if (id) result.merged += 1
+          else {
+            try {
+              id = (
+                await limit(() =>
+                  bookmarks.create({ parentId: target, title: node.title })
+                )
+              ).id
+              result.folders += 1
+            } catch (error) {
+              record(error, 1 + countNodes(node.children))
+              continue
+            }
+          }
+          await write(node.children, id)
+        }
+      }
+      return
+    }
     const folders = level.filter((n) => n.kind === "folder")
     const leaves = level.filter((n) => n.kind === "bookmark")
 
@@ -193,6 +233,8 @@ export function formatImportResult(result: ImportResult): string {
   )}.`
 
   const extras: string[] = []
+  if (result.separators)
+    extras.push(`${plural(result.separators, "separator")} imported`)
   if (result.merged > 0) {
     extras.push(`${plural(result.merged, "folder")} merged`)
   }

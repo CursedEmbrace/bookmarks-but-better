@@ -36,6 +36,8 @@ export interface BookmarkDiagnostic {
 export interface BookmarkNode {
   id: string
   title: string
+  /** Native node kind; older sources infer folders/bookmarks from the URL. */
+  type?: "bookmark" | "folder" | "separator"
   url?: string
   parentId?: string
   children?: BookmarkNode[]
@@ -65,6 +67,8 @@ export interface BookmarkNode {
 }
 
 export interface BookmarkAdapter {
+  /** Native separators only. Absent when the source cannot persist them. */
+  createSeparator?(parentId: string, index?: number): Promise<BookmarkNode>
   getTree(): Promise<BookmarkNode[]>
   getSubTree(id: string): Promise<BookmarkNode[]>
   create(bookmark: {
@@ -140,6 +144,8 @@ export interface FaviconProvider {
 }
 
 export interface AdapterCapabilities {
+  /** Whether this source can create genuine separator nodes. */
+  separators?: boolean
   /** Whether "open in bookmark manager" is supported. False on Firefox and Standalone. */
   openInManager: boolean
   /** Whether a node can be moved to a different parent folder. */

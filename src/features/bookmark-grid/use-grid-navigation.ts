@@ -234,7 +234,7 @@ export function useGridNavigation(options: GridNavigationOptions) {
           // Folder cards are left out: their order is a client-local
           // preference over a masonry layout, where "the card above" is not
           // the previous card in the list being reordered.
-          if (item?.kind !== "bookmark") return
+          if (!item || item.kind === "folder") return
 
           const plan = planBookmarkReorder({
             folder: findNodeById(state.tree, item.folderId),

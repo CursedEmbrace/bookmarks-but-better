@@ -83,7 +83,7 @@ export function planStandaloneMigration(
     for (const node of level) {
       if (node.kind === "bookmark") {
         bookmarks += 1
-      } else {
+      } else if (node.kind === "folder") {
         if (!node.existingId) folders += 1
         walk(node.children)
       }

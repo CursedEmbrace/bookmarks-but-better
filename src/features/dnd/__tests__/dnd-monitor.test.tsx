@@ -371,7 +371,53 @@ describe("DndMonitor", () => {
     })
   })
 
-  describe("extension mode is unchanged", () => {
+  describe("extension ordering counts all native children", () => {
+    it("places bookmarks before and after separators using current native positions", () => {
+      mount(EXTENSION)
+      const children = [
+        { id: "sub", title: "Sub", children: [] },
+        { id: "b1", title: "One", url: "https://one.example" },
+        { id: "s", title: "", type: "separator" as const },
+        { id: "b2", title: "Two", url: "https://two.example" },
+      ]
+      useBookmarkStore.setState({
+        tree: [{ id: "work", title: "Work", children }],
+      })
+      // Stale filtered indices must not displace the divider or the subfolder.
+      drop(bookmark("b1", "work", 99), {
+        ...bookmark("s", "work", 99),
+        closestEdge: "bottom",
+      })
+      expect(moveBookmark).toHaveBeenLastCalledWith("b1", {
+        parentId: "work",
+        index: 2,
+      })
+      drop(bookmark("b2", "work", 99), {
+        ...bookmark("s", "work", 99),
+        closestEdge: "top",
+      })
+      expect(moveBookmark).toHaveBeenLastCalledWith("b2", {
+        parentId: "work",
+        index: 2,
+      })
+      drop(bookmark("s", "work", 99), {
+        ...bookmark("b1", "work", 99),
+        closestEdge: "top",
+      })
+      expect(moveBookmark).toHaveBeenLastCalledWith("s", {
+        parentId: "work",
+        index: 1,
+      })
+      drop(bookmark("other", "elsewhere", 0), {
+        ...bookmark("s", "work", 0),
+        closestEdge: "bottom",
+      })
+      expect(moveBookmark).toHaveBeenLastCalledWith("other", {
+        parentId: "work",
+        index: 3,
+      })
+    })
+
     it("routes a same-folder reorder through move(index)", () => {
       mount(EXTENSION)
 
@@ -382,7 +428,7 @@ describe("DndMonitor", () => {
 
       expect(moveBookmark).toHaveBeenCalledWith("b1", {
         parentId: "work",
-        index: 2,
+        index: 3,
       })
       expect(setChildOrder).not.toHaveBeenCalled()
     })

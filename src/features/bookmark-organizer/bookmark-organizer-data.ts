@@ -1,4 +1,5 @@
 import type { BookmarkAdapter, BookmarkNode } from "@/browser"
+import { isFolderNode } from "@/lib/bookmark-utils"
 import {
   BOOKMARK_ORGANIZER_ROOT_ID,
   type OrganizerItemData,
@@ -7,20 +8,21 @@ import {
 export { BOOKMARK_ORGANIZER_ROOT_ID } from "./bookmark-organizer-types"
 export type { OrganizerItemData } from "./bookmark-organizer-types"
 
-function isFolderNode(node: BookmarkNode): boolean {
-  return node.url == null
-}
-
 export function toOrganizerItem(
   node: BookmarkNode,
   index: number
 ): OrganizerItemData {
-  const kind = isFolderNode(node) ? "folder" : "bookmark"
+  const kind =
+    node.type === "separator"
+      ? "separator"
+      : isFolderNode(node)
+        ? "folder"
+        : "bookmark"
 
   return {
     id: node.id,
     title:
-      node.title ||
+      (kind === "separator" ? "Separator" : node.title) ||
       (kind === "folder" ? "Untitled Folder" : "Untitled Bookmark"),
     kind,
     parentId: node.parentId ?? null,

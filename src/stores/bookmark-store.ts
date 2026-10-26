@@ -139,6 +139,10 @@ interface BookmarkState {
   deleteFolder(id: string): Promise<void>
   /** Resolves the created folder, or `null` when there was no adapter or the create failed. */
   createFolder(parentId: string, title: string): Promise<BookmarkNode | null>
+  createSeparator(
+    parentId: string,
+    afterId?: string
+  ): Promise<BookmarkNode | null>
   /**
    * Resolves `true` when the move was applied. Callers that only open a
    * dialog can keep ignoring the result and read `mutationError` afterwards;
@@ -356,6 +360,51 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
       set({ mutationError: null })
     } catch (error) {
       set({ mutationError: toErrorMessage(error) })
+    }
+  },
+
+  async createSeparator(parentId: string, afterId?: string) {
+    const { adapter } = get()
+    if (!adapter) return null
+    try {
+      if (
+        !adapter.capabilities.separators ||
+        !adapter.bookmarks.createSeparator
+      ) {
+        throw new Error("This source does not support bookmark separators.")
+      }
+      // Resolve against the source, including folders and separators, rather
+      // than a dashboard's filtered child list or an old menu's index.
+      const [parent] = await adapter.bookmarks.getSubTree(parentId)
+      if (get().adapter !== adapter) return null
+      if (
+        !parent ||
+        parent.type === "separator" ||
+        parent.url !== undefined ||
+        parent.readOnly ||
+        parent.orderReadOnly
+      ) {
+        throw new Error("This folder cannot accept a separator.")
+      }
+      const position =
+        afterId === undefined
+          ? undefined
+          : parent.children?.findIndex((child) => child.id === afterId)
+      if (afterId !== undefined && (position === undefined || position < 0)) {
+        throw new Error("This item changed elsewhere. Refresh and try again.")
+      }
+      const created = await adapter.bookmarks.createSeparator(
+        parentId,
+        position === undefined ? undefined : position + 1
+      )
+      if (get().adapter !== adapter) return null
+      set({ mutationError: null })
+      await get().refresh()
+      return get().adapter === adapter ? created : null
+    } catch (error) {
+      if (get().adapter === adapter)
+        set({ mutationError: toErrorMessage(error) })
+      return null
     }
   },
 

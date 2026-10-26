@@ -33,7 +33,7 @@ export function deriveBookmarkTitle(title: string, url: string): string {
  *
  * Entries that cannot become a valid bookmark are dropped here rather than
  * passed on: an `<A>` with no `HREF` (or an empty one) is not a bookmark any
- * adapter can store, and `<HR>` separators carry nothing at all.
+ * adapter can store. `<HR>` entries retain their native separator identity.
  */
 export function parseNetscapeBookmarks(html: string): BookmarkNode[] {
   const parser = new DOMParser()
@@ -57,6 +57,12 @@ export function parseNetscapeBookmarks(html: string): BookmarkNode[] {
     for (let i = 0; i < children.length; i++) {
       const child = children[i]
 
+      const addSeparator = () =>
+        nodes.push({ id: generateId(), title: "", type: "separator", parentId })
+      if (child.tagName === "HR") {
+        addSeparator()
+        continue
+      }
       if (child.tagName !== "DT") continue
 
       const anchor = child.querySelector(":scope > A")
@@ -65,17 +71,19 @@ export function parseNetscapeBookmarks(html: string): BookmarkNode[] {
       if (anchor) {
         // It's a bookmark link
         const url = anchor.getAttribute("HREF")?.trim()
-        if (!url) continue
-
-        const id = generateId()
-        nodes.push({
-          id,
-          title: deriveBookmarkTitle(anchor.textContent ?? "", url),
-          url,
-          parentId,
-          dateAdded: parseAddDate(anchor.getAttribute("ADD_DATE")),
-          children: undefined,
-        })
+        // A malformed link must not discard sibling HR entries that the
+        // HTML parser kept inside this DT.
+        if (url) {
+          const id = generateId()
+          nodes.push({
+            id,
+            title: deriveBookmarkTitle(anchor.textContent ?? "", url),
+            url,
+            parentId,
+            dateAdded: parseAddDate(anchor.getAttribute("ADD_DATE")),
+            children: undefined,
+          })
+        }
       } else if (heading) {
         // It's a folder — the next sibling should be a <DL>
         const id = generateId()
@@ -99,6 +107,11 @@ export function parseNetscapeBookmarks(html: string): BookmarkNode[] {
         if (nextSibling?.tagName === "DL") {
           i++
         }
+      }
+      // HTML parsers can keep an unprefixed Firefox <HR> inside the preceding
+      // DT. Only direct children count: nested folders own their own dividers.
+      for (const entry of Array.from(child.children)) {
+        if (entry.tagName === "HR") addSeparator()
       }
     }
 
