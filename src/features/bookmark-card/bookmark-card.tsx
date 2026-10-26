@@ -65,6 +65,7 @@ const FolderMenu = React.memo(function FolderMenu({
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm)
   const openBookmarkOrganizer = useUIStore((s) => s.openBookmarkOrganizer)
   const openCreateItem = useUIStore((s) => s.openCreateItem)
+  const menuTriggerRef = React.useRef<HTMLButtonElement>(null)
 
   const canOpenInManager = adapter?.capabilities.openInManager ?? false
   const isReadOnly = folder.readOnly ?? false
@@ -72,13 +73,19 @@ const FolderMenu = React.memo(function FolderMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        ref={menuTriggerRef}
         render={
           <Button variant="ghost" size="icon-sm" aria-label="Folder actions" />
         }
       >
         <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-52"
+        // The creation dialog owns focus once a menu action opens it.
+        finalFocus={() => !useUIStore.getState().creatingItem}
+      >
         <DropdownMenuItem onClick={onToggleLayout}>
           <HugeiconsIcon
             icon={layout === "list" ? GridViewIcon : Menu02Icon}
@@ -87,6 +94,18 @@ const FolderMenu = React.memo(function FolderMenu({
           {layout === "list" ? "Grid view" : "List view"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            openCreateItem({
+              type: "folder",
+              parentId: folder.id,
+              returnFocus: menuTriggerRef.current,
+            })
+          }
+        >
+          <HugeiconsIcon icon={Folder01Icon} size={14} />
+          New subfolder
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() =>
             openCreateItem({ type: "bookmark", parentId: folder.id })
@@ -196,7 +215,7 @@ export const BookmarkCard = React.memo(function BookmarkCard({
 
   const { ref: dropRef, isOver } = useFolderDropTarget({
     folderId: folder.id,
-    disabled: !moveEnabled,
+    disabled: !moveEnabled || folder.readOnly,
   })
 
   const setOpen = React.useCallback(
@@ -253,10 +272,11 @@ export const BookmarkCard = React.memo(function BookmarkCard({
       onOpenChange={setOpen}
       ref={dropRef as React.RefObject<HTMLDivElement>}
       data-testid="bookmark-card"
+      data-drop-active={isOver || undefined}
       className={cn(
         "flex w-full min-w-0 flex-col rounded-2xl bg-card p-4 ring-1 ring-border transition-shadow",
         nested && "ring-border/50",
-        isOver && "shadow-md ring-2 ring-primary/50"
+        isOver && "shadow-md ring-2 ring-primary"
       )}
     >
       {/* Header */}
@@ -357,6 +377,8 @@ export const BookmarkCard = React.memo(function BookmarkCard({
                   layout={layout}
                   sortableIndex={index}
                   folderId={folder.id}
+                  folderReadOnly={folder.readOnly}
+                  orderReadOnly={folder.orderReadOnly}
                 />
               ))}
             </div>

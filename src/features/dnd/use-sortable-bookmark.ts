@@ -17,6 +17,9 @@ interface UseSortableBookmarkInput {
   folderId: string
   layout?: "list" | "grid"
   disabled?: boolean
+  canMove?: boolean
+  canReorder?: boolean
+  destinationReadOnly?: boolean
 }
 
 export function useSortableBookmark({
@@ -25,6 +28,9 @@ export function useSortableBookmark({
   folderId,
   layout = "list",
   disabled = false,
+  canMove = true,
+  canReorder = true,
+  destinationReadOnly = false,
 }: UseSortableBookmarkInput) {
   const ref = useRef<HTMLElement | null>(null)
   const indexRef = useRef(index)
@@ -61,20 +67,33 @@ export function useSortableBookmark({
         canDrop: ({ source }) => {
           return source.data.type === DND_TYPE.BOOKMARK && source.data.id !== id
         },
-        getData: ({ input, element }) =>
-          attachClosestEdge(getData(), {
-            element,
-            input,
-            allowedEdges,
-          }),
+        getData: ({ source, input, element }) =>
+          attachClosestEdge(
+            {
+              ...getData(),
+              isDropAllowed:
+                !destinationReadOnly &&
+                (source.data.folderId === folderId ? canReorder : canMove),
+            },
+            {
+              element,
+              input,
+              allowedEdges,
+            }
+          ),
         onDragEnter: ({ self }) =>
-          setClosestEdge(extractClosestEdge(self.data)),
-        onDrag: ({ self }) => setClosestEdge(extractClosestEdge(self.data)),
+          setClosestEdge(
+            self.data.isDropAllowed ? extractClosestEdge(self.data) : null
+          ),
+        onDrag: ({ self }) =>
+          setClosestEdge(
+            self.data.isDropAllowed ? extractClosestEdge(self.data) : null
+          ),
         onDragLeave: () => setClosestEdge(null),
         onDrop: () => setClosestEdge(null),
       })
     )
-  }, [id, folderId, layout, disabled])
+  }, [id, folderId, layout, disabled, canMove, canReorder, destinationReadOnly])
 
   return { ref, isDragging, closestEdge }
 }

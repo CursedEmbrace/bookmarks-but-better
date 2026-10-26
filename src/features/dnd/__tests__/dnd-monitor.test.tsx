@@ -129,6 +129,17 @@ function bookmark(id: string, folderId: string, index: number) {
 }
 
 describe("DndMonitor", () => {
+  it("does not mutate bookmarks for a blocked inner destination", () => {
+    mount(EXTENSION)
+    drop(bookmark("b1", "work", 0), {
+      type: "folder-drop-target",
+      folderId: "play",
+      isDropAllowed: false,
+    })
+    expect(moveBookmark).not.toHaveBeenCalled()
+    expect(setChildOrder).not.toHaveBeenCalled()
+  })
+
   beforeEach(() => {
     moveBookmark = vi.fn().mockResolvedValue(true)
     setChildOrder = vi.fn().mockResolvedValue(true)

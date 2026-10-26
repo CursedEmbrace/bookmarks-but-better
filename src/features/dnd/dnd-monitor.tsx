@@ -48,7 +48,7 @@ export function DndMonitor() {
     return monitorForElements({
       onDrop({ source, location }) {
         const target = location.current.dropTargets[0]
-        if (!target) return
+        if (!target || target.data.isDropAllowed === false) return
 
         const sourceData = source.data as unknown as
           | BookmarkDragData

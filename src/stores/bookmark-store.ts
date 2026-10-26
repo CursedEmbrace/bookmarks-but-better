@@ -274,14 +274,17 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   },
 
   async refresh() {
-    const { adapter, rootFolderId } = get()
+    const { adapter } = get()
     if (!adapter) return
 
     try {
       const tree = await adapter.bookmarks.getTree()
+      if (get().adapter !== adapter) return
+      const { rootFolderId } = get()
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       set({ tree, rootFolder, status: "ready", loadError: null })
     } catch (error) {
+      if (get().adapter !== adapter) return
       set({ status: "unavailable", loadError: toErrorMessage(error) })
     }
   },
@@ -361,9 +364,15 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     if (!adapter) return null
     try {
       const created = await adapter.bookmarks.create({ parentId, title })
+      if (get().adapter !== adapter) return null
       set({ mutationError: null })
+      // Update the dashboard before resolving, without waiting for a browser
+      // event or the daemon change stream's debounced refresh.
+      await get().refresh()
+      if (get().adapter !== adapter) return null
       return created
     } catch (error) {
+      if (get().adapter !== adapter) return null
       set({ mutationError: toErrorMessage(error) })
       return null
     }
