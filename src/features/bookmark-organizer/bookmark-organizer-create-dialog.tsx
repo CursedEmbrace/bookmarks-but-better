@@ -22,6 +22,7 @@ export function BookmarkOrganizerCreateDialog() {
 
   const [title, setTitle] = React.useState("")
   const [url, setUrl] = React.useState("")
+  const [isCreating, setIsCreating] = React.useState(false)
   // Empty fields only complain once the user has actually been there and left
   // them blank — a dialog that opens already shouting is worse than one that
   // waits to be asked.
@@ -30,6 +31,7 @@ export function BookmarkOrganizerCreateDialog() {
   React.useEffect(() => {
     setTitle("")
     setUrl("")
+    setIsCreating(false)
     setTouched({ title: false, url: false })
     clearMutationError()
   }, [creatingItem, clearMutationError])
@@ -44,23 +46,36 @@ export function BookmarkOrganizerCreateDialog() {
   const normalizedTitle = title.trim()
   const normalizedUrl = url.trim()
   const canCreate =
-    normalizedTitle !== "" && (!isBookmark || normalizedUrl !== "")
+    !isCreating &&
+    normalizedTitle !== "" &&
+    (!isBookmark || normalizedUrl !== "")
 
   const handleCreate = async () => {
     if (!canCreate) return
+    setIsCreating(true)
+    try {
+      if (isBookmark) {
+        await createBookmark(
+          creatingItem.parentId,
+          normalizedTitle,
+          normalizedUrl
+        )
+      } else {
+        const created = await createFolder(
+          creatingItem.parentId,
+          normalizedTitle
+        )
+        if (!created) return
+      }
 
-    if (isBookmark) {
-      await createBookmark(
-        creatingItem.parentId,
-        normalizedTitle,
-        normalizedUrl
-      )
-    } else {
-      await createFolder(creatingItem.parentId, normalizedTitle)
+      if (useUIStore.getState().creatingItem !== creatingItem) return
+      if (useBookmarkStore.getState().mutationError) return
+      closeCreateItem()
+    } finally {
+      if (useUIStore.getState().creatingItem === creatingItem) {
+        setIsCreating(false)
+      }
     }
-
-    if (useBookmarkStore.getState().mutationError) return
-    closeCreateItem()
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -80,7 +95,12 @@ export function BookmarkOrganizerCreateDialog() {
         }
       }}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        finalFocus={
+          creatingItem.returnFocus ? () => creatingItem.returnFocus : undefined
+        }
+      >
         <form
           className="flex flex-col gap-4"
           noValidate
@@ -160,14 +180,14 @@ export function BookmarkOrganizerCreateDialog() {
               type="submit"
               disabled={!canCreate}
               title={
-                canCreate
+                canCreate || isCreating
                   ? undefined
                   : isBookmark
                     ? "Enter a title and a URL first."
                     : "Enter a title first."
               }
             >
-              Create
+              {isCreating ? "Creating…" : "Create"}
             </Button>
           </DialogFooter>
         </form>

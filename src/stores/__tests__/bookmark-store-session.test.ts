@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { useBookmarkStore } from "../bookmark-store"
-import type { BrowserAdapter } from "@/browser"
+import type { BookmarkNode, BrowserAdapter } from "@/browser"
 
 /**
  * The session-lifecycle regression suite: what a Source Session owes even
@@ -178,4 +178,78 @@ describe("bookmark-store failed-init session lifecycle", () => {
     expect(totalListeners(listeners)).toBe(0)
     expect(dispose).toHaveBeenCalledTimes(1)
   })
+})
+
+describe("folder creation Source Session isolation", () => {
+  it.each([false, true])(
+    "ignores a stale creation result (failure=%s)",
+    async (fails) => {
+      const { adapter } = sessionAdapter()
+      let resolve!: (node: BookmarkNode) => void
+      let reject!: (error: Error) => void
+      adapter.bookmarks.create = vi.fn(
+        () =>
+          new Promise<BookmarkNode>((res, rej) => {
+            resolve = res
+            reject = rej
+          })
+      )
+      useBookmarkStore.setState({ adapter })
+      const pending = useBookmarkStore
+        .getState()
+        .createFolder("parent", "Child")
+      const next = sessionAdapter().adapter
+      useBookmarkStore.setState({
+        adapter: next,
+        mutationError: "Current source error",
+      })
+      if (fails) reject(new Error("Old source error"))
+      else resolve({ id: "child", title: "Child", children: [] })
+      expect(await pending).toBeNull()
+      expect(useBookmarkStore.getState().mutationError).toBe(
+        "Current source error"
+      )
+      expect(adapter.bookmarks.getTree).not.toHaveBeenCalled()
+      expect(next.bookmarks.create).not.toHaveBeenCalled()
+      expect(next.bookmarks.getTree).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([false, true])(
+    "ignores a stale post-creation refresh (failure=%s)",
+    async (fails) => {
+      const { adapter } = sessionAdapter()
+      let resolve!: (tree: BookmarkNode[]) => void
+      let reject!: (error: Error) => void
+      adapter.bookmarks.getTree = vi.fn(
+        () =>
+          new Promise<BookmarkNode[]>((res, rej) => {
+            resolve = res
+            reject = rej
+          })
+      )
+      useBookmarkStore.setState({ adapter })
+      const pending = useBookmarkStore
+        .getState()
+        .createFolder("parent", "Child")
+      await vi.waitFor(() =>
+        expect(adapter.bookmarks.getTree).toHaveBeenCalled()
+      )
+      const tree = [{ id: "next", title: "Next source", children: [] }]
+      useBookmarkStore.setState({
+        adapter: sessionAdapter().adapter,
+        tree,
+        rootFolder: tree[0],
+        status: "ready",
+        loadError: null,
+      })
+      if (fails) reject(new Error("Old source offline"))
+      else resolve([{ id: "old", title: "Old source", children: [] }])
+      expect(await pending).toBeNull()
+      expect(useBookmarkStore.getState().tree).toBe(tree)
+      expect(useBookmarkStore.getState().rootFolder).toBe(tree[0])
+      expect(useBookmarkStore.getState().status).toBe("ready")
+      expect(useBookmarkStore.getState().loadError).toBeNull()
+    }
+  )
 })

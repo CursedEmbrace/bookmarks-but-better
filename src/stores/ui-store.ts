@@ -12,6 +12,8 @@ interface DeletingItem {
 interface CreateItemRequest {
   type: "bookmark" | "folder"
   parentId: string
+  /** A dashboard menu trigger to restore focus to when its dialog closes. */
+  returnFocus?: HTMLElement | null
 }
 
 interface SearchPaletteRequest {

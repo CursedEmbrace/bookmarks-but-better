@@ -65,6 +65,7 @@ const FolderMenu = React.memo(function FolderMenu({
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm)
   const openBookmarkOrganizer = useUIStore((s) => s.openBookmarkOrganizer)
   const openCreateItem = useUIStore((s) => s.openCreateItem)
+  const menuTriggerRef = React.useRef<HTMLButtonElement>(null)
 
   const canOpenInManager = adapter?.capabilities.openInManager ?? false
   const isReadOnly = folder.readOnly ?? false
@@ -72,13 +73,19 @@ const FolderMenu = React.memo(function FolderMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
+        ref={menuTriggerRef}
         render={
           <Button variant="ghost" size="icon-sm" aria-label="Folder actions" />
         }
       >
         <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-52">
+      <DropdownMenuContent
+        align="end"
+        className="min-w-52"
+        // The creation dialog owns focus once a menu action opens it.
+        finalFocus={() => !useUIStore.getState().creatingItem}
+      >
         <DropdownMenuItem onClick={onToggleLayout}>
           <HugeiconsIcon
             icon={layout === "list" ? GridViewIcon : Menu02Icon}
@@ -87,6 +94,18 @@ const FolderMenu = React.memo(function FolderMenu({
           {layout === "list" ? "Grid view" : "List view"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() =>
+            openCreateItem({
+              type: "folder",
+              parentId: folder.id,
+              returnFocus: menuTriggerRef.current,
+            })
+          }
+        >
+          <HugeiconsIcon icon={Folder01Icon} size={14} />
+          New subfolder
+        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() =>
             openCreateItem({ type: "bookmark", parentId: folder.id })

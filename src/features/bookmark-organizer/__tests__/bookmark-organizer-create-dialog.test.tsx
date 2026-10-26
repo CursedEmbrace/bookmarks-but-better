@@ -19,7 +19,7 @@ describe("BookmarkOrganizerCreateDialog", () => {
       creatingItem: null,
     })
     useBookmarkStore.setState({
-      createFolder: vi.fn().mockResolvedValue(undefined),
+      createFolder: vi.fn().mockResolvedValue({ id: "new", children: [] }),
       createBookmark: vi.fn().mockResolvedValue(undefined),
     })
   })
@@ -30,7 +30,7 @@ describe("BookmarkOrganizerCreateDialog", () => {
 
   it("creates a folder from the organizer create dialog", async () => {
     const user = userEvent.setup()
-    const createFolder = vi.fn().mockResolvedValue(undefined)
+    const createFolder = vi.fn().mockResolvedValue({ id: "new", children: [] })
     const closeCreateItem = vi.fn(() => {
       useUIStore.setState({ creatingItem: null })
     })
