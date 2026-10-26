@@ -3,6 +3,7 @@ import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useCardDisplay, usePreferencesStore } from "@/stores/preferences-store"
 import { BookmarkCard } from "@/features/bookmark-card"
 import { useSortableFolder, DropIndicator } from "@/features/dnd"
+import { autoScrollDashboard } from "@/features/dnd/auto-scroll"
 import type { BookmarkNode } from "@/browser"
 import { cn } from "@/lib/utils"
 import { getVisibleFolders } from "./folder-collection"
@@ -159,6 +160,7 @@ export function BookmarkGrid() {
 
   return (
     <div
+      ref={autoScrollDashboard}
       className={cn(
         "w-full min-w-0",
         containerMode === "contained" && "mx-auto max-w-[1440px]"

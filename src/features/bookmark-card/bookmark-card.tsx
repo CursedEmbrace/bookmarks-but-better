@@ -215,7 +215,7 @@ export const BookmarkCard = React.memo(function BookmarkCard({
 
   const { ref: dropRef, isOver } = useFolderDropTarget({
     folderId: folder.id,
-    disabled: !moveEnabled,
+    disabled: !moveEnabled || folder.readOnly,
   })
 
   const setOpen = React.useCallback(
@@ -272,10 +272,11 @@ export const BookmarkCard = React.memo(function BookmarkCard({
       onOpenChange={setOpen}
       ref={dropRef as React.RefObject<HTMLDivElement>}
       data-testid="bookmark-card"
+      data-drop-active={isOver || undefined}
       className={cn(
         "flex w-full min-w-0 flex-col rounded-2xl bg-card p-4 ring-1 ring-border transition-shadow",
         nested && "ring-border/50",
-        isOver && "shadow-md ring-2 ring-primary/50"
+        isOver && "shadow-md ring-2 ring-primary"
       )}
     >
       {/* Header */}
@@ -376,6 +377,8 @@ export const BookmarkCard = React.memo(function BookmarkCard({
                   layout={layout}
                   sortableIndex={index}
                   folderId={folder.id}
+                  folderReadOnly={folder.readOnly}
+                  orderReadOnly={folder.orderReadOnly}
                 />
               ))}
             </div>
