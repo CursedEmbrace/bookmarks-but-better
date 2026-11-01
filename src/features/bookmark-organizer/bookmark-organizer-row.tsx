@@ -40,6 +40,7 @@ interface BookmarkOrganizerRowProps {
   onRename: (item: ItemInstance<OrganizerItemData>) => void | Promise<void>
   onDelete: (item: ItemInstance<OrganizerItemData>) => void | Promise<void>
   onCreateItem: (type: "folder" | "bookmark") => void
+  onCreateSeparator?: () => void
 }
 
 export const BookmarkOrganizerRow = React.memo(function BookmarkOrganizerRow({
@@ -49,9 +50,11 @@ export const BookmarkOrganizerRow = React.memo(function BookmarkOrganizerRow({
   onRename,
   onDelete,
   onCreateItem,
+  onCreateSeparator,
 }: BookmarkOrganizerRowProps) {
   const itemData = item.getItemData()
   const isFolder = itemData?.kind === "folder" || item.isFolder()
+  const isSeparator = itemData?.kind === "separator"
   const isExpanded = isFolder && item.isExpanded()
   const isFolderDropTarget = isFolder && item.isUnorderedDragTarget()
   const title = itemData?.title ?? item.getItemName()
@@ -126,14 +129,16 @@ export const BookmarkOrganizerRow = React.memo(function BookmarkOrganizerRow({
       )}
 
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        <HugeiconsIcon
-          icon={isFolder ? Folder01Icon : Bookmark02Icon}
-          size={12}
-          className={cn(
-            "shrink-0",
-            isFolder ? "text-primary" : "text-muted-foreground"
-          )}
-        />
+        {!isSeparator && (
+          <HugeiconsIcon
+            icon={isFolder ? Folder01Icon : Bookmark02Icon}
+            size={12}
+            className={cn(
+              "shrink-0",
+              isFolder ? "text-primary" : "text-muted-foreground"
+            )}
+          />
+        )}
         <span
           className={cn(
             "truncate text-[13px] leading-5 font-medium",
@@ -143,6 +148,9 @@ export const BookmarkOrganizerRow = React.memo(function BookmarkOrganizerRow({
         >
           {title}
         </span>
+        {isSeparator && (
+          <span role="separator" className="h-px flex-1 bg-border" />
+        )}
         {isOrderReadOnly && (
           <Tooltip>
             <TooltipTrigger
@@ -207,49 +215,73 @@ export const BookmarkOrganizerRow = React.memo(function BookmarkOrganizerRow({
                 />
                 New Bookmark
               </DropdownMenuItem>
+              {onCreateSeparator && (
+                <DropdownMenuItem
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onCreateSeparator()
+                  }}
+                >
+                  Add separator
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
 
-        {isReadOnly ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="icon-xs"
-                  aria-label="Rename item (read-only)"
-                  aria-disabled="true"
-                  className="bg-transparent opacity-50 group-hover/row:bg-secondary"
-                  onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                  }}
-                />
-              }
-            >
-              <HugeiconsIcon icon={PencilEdit01Icon} />
-            </TooltipTrigger>
-            <TooltipContent>{readOnlyReason(itemData)}</TooltipContent>
-          </Tooltip>
-        ) : (
+        {!isFolder && onCreateSeparator && (
           <Button
-            type="button"
-            variant="secondary"
+            variant="ghost"
             size="icon-xs"
-            aria-label="Rename item"
-            title="Rename"
-            className="bg-transparent group-hover/row:bg-secondary"
+            aria-label="Insert separator below"
             onClick={(event) => {
-              event.preventDefault()
               event.stopPropagation()
-              void onRename(item)
+              onCreateSeparator()
             }}
           >
-            <HugeiconsIcon icon={PencilEdit01Icon} />
+            <HugeiconsIcon icon={Add01Icon} />
           </Button>
         )}
+        {!isSeparator &&
+          (isReadOnly ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon-xs"
+                    aria-label="Rename item (read-only)"
+                    aria-disabled="true"
+                    className="bg-transparent opacity-50 group-hover/row:bg-secondary"
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                    }}
+                  />
+                }
+              >
+                <HugeiconsIcon icon={PencilEdit01Icon} />
+              </TooltipTrigger>
+              <TooltipContent>{readOnlyReason(itemData)}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon-xs"
+              aria-label="Rename item"
+              title="Rename"
+              className="bg-transparent group-hover/row:bg-secondary"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                void onRename(item)
+              }}
+            >
+              <HugeiconsIcon icon={PencilEdit01Icon} />
+            </Button>
+          ))}
         {isReadOnly ? (
           <Tooltip>
             <TooltipTrigger

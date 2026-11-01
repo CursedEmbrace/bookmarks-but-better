@@ -1,5 +1,18 @@
 import type { BookmarkNode } from "@/browser"
 
+export function isSeparator(node: BookmarkNode): boolean {
+  return node.type === "separator"
+}
+
+export function isFolderNode(node: BookmarkNode): boolean {
+  return !isSeparator(node) && node.url == null
+}
+
+/** Entries rendered inside a folder, in their persisted order. */
+export function isCardEntry(node: BookmarkNode): boolean {
+  return isSeparator(node) || node.url !== undefined
+}
+
 export function collectAllFolders(node: BookmarkNode): BookmarkNode[] {
   const folders: BookmarkNode[] = []
   if (node.children) {

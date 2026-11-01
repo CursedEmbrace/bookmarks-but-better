@@ -20,7 +20,9 @@ export function serializeNetscapeBookmarks(tree: BookmarkNode[]): string {
     lines.push(`${pad}<DL><p>`)
 
     for (const node of nodes) {
-      if (node.url) {
+      if (node.type === "separator") {
+        lines.push(`${pad}    <DT><HR>`)
+      } else if (node.url) {
         // Bookmark link
         const addDate = node.dateAdded
           ? ` ADD_DATE="${Math.floor(node.dateAdded / 1000)}"`

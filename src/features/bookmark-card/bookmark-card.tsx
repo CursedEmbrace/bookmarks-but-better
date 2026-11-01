@@ -25,6 +25,7 @@ import {
   ArrowUpRight01Icon,
   ArrowRight01Icon,
 } from "@hugeicons/core-free-icons"
+import { BookmarkSeparator } from "@/features/bookmark-item/bookmark-separator"
 import { BookmarkItem } from "@/features/bookmark-item"
 import { useFolderDropTarget } from "@/features/dnd"
 // Past the grid's barrel on purpose: importing it would pull `BookmarkGrid`,
@@ -114,6 +115,18 @@ const FolderMenu = React.memo(function FolderMenu({
           <HugeiconsIcon icon={Bookmark02Icon} size={14} />
           New Bookmark
         </DropdownMenuItem>
+        {adapter?.capabilities.separators &&
+          adapter.bookmarks.createSeparator &&
+          !isReadOnly &&
+          !folder.orderReadOnly && (
+            <DropdownMenuItem
+              onClick={() =>
+                void useBookmarkStore.getState().createSeparator(folder.id)
+              }
+            >
+              Add separator
+            </DropdownMenuItem>
+          )}
         <DropdownMenuItem onClick={openBookmarkOrganizer}>
           <HugeiconsIcon icon={Folder01Icon} size={14} />
           Organize bookmarks
@@ -249,7 +262,9 @@ export const BookmarkCard = React.memo(function BookmarkCard({
   const children = folder.children ?? []
 
   // Separate direct bookmarks from subfolders
-  const bookmarks = children.filter((c) => c.url !== undefined)
+  const bookmarks = children.filter(
+    (c) => c.url !== undefined || c.type === "separator"
+  )
   const subfolders = children.filter(
     (c) => c.url === undefined && c.children !== undefined
   )
@@ -370,17 +385,28 @@ export const BookmarkCard = React.memo(function BookmarkCard({
                   : "flex flex-col"
               )}
             >
-              {bookmarks.map((bookmark, index) => (
-                <BookmarkItem
-                  key={bookmark.id}
-                  bookmark={bookmark}
-                  layout={layout}
-                  sortableIndex={index}
-                  folderId={folder.id}
-                  folderReadOnly={folder.readOnly}
-                  orderReadOnly={folder.orderReadOnly}
-                />
-              ))}
+              {bookmarks.map((bookmark, index) =>
+                bookmark.type === "separator" ? (
+                  <BookmarkSeparator
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    folderId={folder.id}
+                    sortableIndex={index}
+                    folderReadOnly={folder.readOnly}
+                    orderReadOnly={folder.orderReadOnly}
+                  />
+                ) : (
+                  <BookmarkItem
+                    key={bookmark.id}
+                    bookmark={bookmark}
+                    layout={layout}
+                    sortableIndex={index}
+                    folderId={folder.id}
+                    folderReadOnly={folder.readOnly}
+                    orderReadOnly={folder.orderReadOnly}
+                  />
+                )
+              )}
             </div>
           )}
 

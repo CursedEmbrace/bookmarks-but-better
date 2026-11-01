@@ -112,6 +112,7 @@ interface PendingImport {
   nodes: BookmarkNode[]
   folders: number
   bookmarks: number
+  separators: number
   /** Rows dropped for lacking a valid http(s) URL, for CSV imports. */
   skipped: number
 }
@@ -119,10 +120,16 @@ interface PendingImport {
 function summarize(nodes: BookmarkNode[]): {
   folders: number
   bookmarks: number
+  separators: number
 } {
   let folders = 0
   let bookmarks = 0
+  let separators = 0
   for (const node of nodes) {
+    if (node.type === "separator") {
+      separators++
+      continue
+    }
     if (node.url) {
       bookmarks += 1
     } else {
@@ -130,9 +137,10 @@ function summarize(nodes: BookmarkNode[]): {
       const nested = summarize(node.children ?? [])
       folders += nested.folders
       bookmarks += nested.bookmarks
+      separators += nested.separators
     }
   }
-  return { folders, bookmarks }
+  return { folders, bookmarks, separators }
 }
 
 export function DataMigrationPanel({
@@ -327,8 +335,10 @@ export function DataMigrationPanel({
                 Found {pendingImport.bookmarks} bookmark
                 {pendingImport.bookmarks === 1 ? "" : "s"} in{" "}
                 {pendingImport.folders} folder
-                {pendingImport.folders === 1 ? "" : "s"}. Choose where to put
-                them.
+                {pendingImport.folders === 1 ? "" : "s"}
+                {pendingImport.separators > 0 &&
+                  `, plus ${pendingImport.separators} separator${pendingImport.separators === 1 ? "" : "s"}`}
+                . Choose where to put them.
                 {pendingImport.skipped > 0 &&
                   ` ${pendingImport.skipped} row${pendingImport.skipped === 1 ? "" : "s"} had no valid URL and ${pendingImport.skipped === 1 ? "was" : "were"} skipped.`}
               </p>

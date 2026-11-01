@@ -74,6 +74,7 @@ function collect(
   hits: BookmarkSearchHit[]
 ): void {
   for (const node of nodes) {
+    if (node.type === "separator") continue
     const kind: BookmarkSearchKind = node.url == null ? "folder" : "bookmark"
     const score = scoreNode(node, needle)
 

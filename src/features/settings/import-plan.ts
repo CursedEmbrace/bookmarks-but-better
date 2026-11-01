@@ -14,6 +14,7 @@ export interface ImportConflict {
 }
 
 export type ImportPlanNode =
+  | { kind: "separator" }
   | {
       kind: "folder"
       title: string
@@ -108,6 +109,7 @@ export function planImport(
     }
 
     return nodes.map((node): ImportPlanNode => {
+      if (node.type === "separator") return { kind: "separator" }
       if (node.url !== undefined) {
         const match = existingByUrl.get(normalizeUrl(node.url))
         if (!match) {
@@ -144,7 +146,9 @@ export function planImport(
 
       const match = existing.find(
         (child) =>
-          child.url === undefined && sameFolderName(child.title, node.title)
+          child.type !== "separator" &&
+          child.url === undefined &&
+          sameFolderName(child.title, node.title)
       )
 
       return {

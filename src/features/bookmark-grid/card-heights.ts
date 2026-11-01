@@ -30,6 +30,10 @@ export function estimateCardHeight(
 ): number {
   const bookmarks = (folder.children ?? []).filter((c) => c.url !== undefined)
   const count = bookmarks.length
+  const entries = (folder.children ?? []).filter(
+    (c) => c.url !== undefined || c.type === "separator"
+  )
+  const separators = entries.filter((c) => c.type === "separator").length
   const layout = display.cardLayouts[folder.id] ?? "list"
 
   // Header (~40px) + padding (~24px)
@@ -41,12 +45,20 @@ export function estimateCardHeight(
   if (layout === "grid") {
     // Grid: ~48px cells, ~5 per row in a typical column width, ~52px per row
     const cols = 5
-    const rows = Math.ceil(count / cols)
-    return chrome + rows * 52
+    let rows = 0
+    let run = 0
+    for (const entry of entries) {
+      if (entry.type === "separator") {
+        rows += Math.ceil(run / cols)
+        run = 0
+      } else run++
+    }
+    rows += Math.ceil(run / cols)
+    return chrome + rows * 52 + separators * 24
   }
 
   // List: ~32px per item
-  return chrome + count * 32
+  return chrome + count * 32 + separators * 20
 }
 
 /**

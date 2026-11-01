@@ -101,7 +101,9 @@ export function materializeSeed(
       title: seed.title,
       dateAdded: base + counter * 1_000,
     }
-    if (seed.url !== undefined) {
+    if (seed.type === "separator") {
+      node.type = "separator"
+    } else if (seed.url !== undefined) {
       node.url = seed.url
     } else {
       node.children = (seed.children ?? []).map(build)
@@ -245,6 +247,27 @@ export class MutableBookmarkEngine {
       node.children = []
     }
     parent.children!.push(node)
+    await this.persist()
+    this.notify("created")
+    return clone(node)
+  }
+
+  async createSeparator(
+    parentId: string,
+    index?: number
+  ): Promise<BookmarkNode> {
+    await this.ready()
+    if (this.flavor !== "browser")
+      throw new Error("Separators require a browser source")
+    const parent = findNode(this.assertRoot(), parentId)
+    if (!parent?.children) throw new Error("Unknown folder")
+    const node: BookmarkNode = {
+      id: this.nextId(),
+      parentId,
+      title: "",
+      type: "separator",
+    }
+    parent.children.splice(index ?? parent.children.length, 0, node)
     await this.persist()
     this.notify("created")
     return clone(node)

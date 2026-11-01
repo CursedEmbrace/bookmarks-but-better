@@ -97,22 +97,28 @@ export function DndMonitor() {
         if (!reorderEnabled && !setChildOrderEnabled) return
 
         if (reorderEnabled) {
-          // The raw drag indices are deliberate here, and must stay. This path
-          // ends in `move(id, {index})`, which addresses the node by id and
-          // only positions it — so a stale index misplaces the bookmark the
-          // user dragged. The daemon path below writes a whole permutation and
-          // would instead move a *different* bookmark, which is why it alone
-          // re-derives its positions. Misplacement and mistaken identity are
-          // not the same bug, and hardening this branch would change extension
-          // behaviour the brief requires kept exactly.
+          // Resolve full native child positions, not the card's filtered list.
+          const folder = findNodeById(
+            useBookmarkStore.getState().tree,
+            sourceData.folderId
+          )
+          if (!folder || folder.readOnly || folder.orderReadOnly) return
+          const children = folder.children ?? []
+          const sourceIndex = children.findIndex(
+            (child) => child.id === sourceData.id
+          )
+          const targetIndex = children.findIndex(
+            (child) => child.id === targetBookmark.id
+          )
+          if (sourceIndex < 0 || targetIndex < 0) return
           const destinationIndex = getReorderDestinationIndex({
-            startIndex: sourceData.index,
+            startIndex: sourceIndex,
             closestEdgeOfTarget: closestEdge,
-            indexOfTarget: targetBookmark.index,
+            indexOfTarget: targetIndex,
             axis: "vertical",
           })
 
-          if (destinationIndex === sourceData.index) return
+          if (destinationIndex === sourceIndex) return
 
           void moveBookmark(sourceData.id, {
             parentId: sourceData.folderId,
@@ -147,7 +153,15 @@ export function DndMonitor() {
         // (daemon) ignore it and place the node deterministically.
         if (!moveEnabled) return
 
-        let destinationIndex = targetBookmark.index
+        const folder = findNodeById(
+          useBookmarkStore.getState().tree,
+          targetBookmark.folderId
+        )
+        if (!folder || folder.readOnly) return
+        let destinationIndex = (folder.children ?? []).findIndex(
+          (child) => child.id === targetBookmark.id
+        )
+        if (destinationIndex < 0) return
         if (closestEdge === "bottom") {
           destinationIndex += 1
         }

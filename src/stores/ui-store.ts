@@ -5,7 +5,7 @@ import type { SettingsCategoryId } from "@/features/settings/settings-categories
 interface DeletingItem {
   id: string
   title: string
-  type: "bookmark" | "folder"
+  type: "bookmark" | "folder" | "separator"
   childCount?: number
 }
 

@@ -44,7 +44,7 @@ export function getVisibleFolders({
   // The id stays the root's real id, so keyboard navigation and lazy cards
   // key off the same identity as everywhere else the root is referenced.
   const rootBookmarks = (displayRoot.children ?? []).filter(
-    (child) => child.url !== undefined
+    (child) => child.url !== undefined || child.type === "separator"
   )
   if (rootBookmarks.length === 0) return folders
 

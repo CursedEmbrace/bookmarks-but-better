@@ -35,6 +35,7 @@ function folderIdsByTitle(nodes: BookmarkNode[], title: string): string[] {
 describe("the scenario registry", () => {
   it("exposes exactly the documented scenarios", () => {
     expect(DEV_SCENARIOS.map((s) => s.id)).toEqual([
+      "firefox-separators",
       "fresh-chrome",
       "browser-only",
       "browser-daemon",

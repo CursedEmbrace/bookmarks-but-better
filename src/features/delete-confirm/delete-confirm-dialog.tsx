@@ -45,7 +45,12 @@ export function DeleteConfirmDialog() {
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            Delete {deletingItem?.type === "folder" ? "Folder" : "Bookmark"}
+            Delete{" "}
+            {deletingItem?.type === "folder"
+              ? "Folder"
+              : deletingItem?.type === "separator"
+                ? "Separator"
+                : "Bookmark"}
           </DialogTitle>
           <DialogDescription>
             {deletingItem?.type === "folder" ? (

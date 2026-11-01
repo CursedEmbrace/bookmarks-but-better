@@ -27,6 +27,7 @@ import seedBookmarks from "./seed-bookmarks.json"
 
 /** One node of a seed tree. Ids are assigned deterministically at seeding. */
 export interface SeedNode {
+  type?: "separator"
   title: string
   url?: string
   children?: SeedNode[]
@@ -349,6 +350,34 @@ const browserDaemonDaemons: DevDaemonSeed[] = [
 ]
 
 export const DEV_SCENARIOS: DevScenario[] = [
+  {
+    id: "firefox-separators",
+    label: "Firefox separators",
+    description:
+      "Native separator creation, ordering and persistence in the Browser Source.",
+    capabilities: devCapabilities({ buildTarget: "firefox" }),
+    browserTree: [
+      {
+        title: "Separator demo",
+        children: [
+          { title: "First", url: "https://example.com/first" },
+          { title: "", type: "separator" },
+          { title: "Second", url: "https://example.com/second" },
+          {
+            title: "Nested",
+            children: [
+              { title: "Nested first", url: "https://example.com/nested" },
+              { title: "", type: "separator" },
+            ],
+          },
+        ],
+      },
+    ],
+    standaloneTree: null,
+    daemons: [],
+    activeSource: BROWSER_SOURCE_ID,
+    onboardingCompleted: true,
+  },
   {
     id: "fresh-chrome",
     label: "Fresh Chrome profile",

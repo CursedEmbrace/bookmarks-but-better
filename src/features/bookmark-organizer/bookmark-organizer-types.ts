@@ -3,7 +3,7 @@ import type { BookmarkDiagnostic } from "@/browser"
 export type OrganizerItemData = {
   id: string
   title: string
-  kind: "folder" | "bookmark"
+  kind: "folder" | "bookmark" | "separator"
   parentId: string | null
   index: number
   childCount: number

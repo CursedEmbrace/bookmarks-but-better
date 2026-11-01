@@ -40,7 +40,7 @@ import {
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useUIStore } from "@/stores/ui-store"
 import { usePreferencesStore } from "@/stores/preferences-store"
-import { findNodePath } from "@/lib/bookmark-utils"
+import { findNodeById, findNodePath } from "@/lib/bookmark-utils"
 
 export function BookmarkOrganizerSheet() {
   const bookmarkOrganizerOpen = useUIStore((s) => s.bookmarkOrganizerOpen)
@@ -56,6 +56,7 @@ export function BookmarkOrganizerSheet() {
   const clearMutationError = useBookmarkStore((s) => s.clearMutationError)
 
   const creatingItem = useUIStore((s) => s.creatingItem)
+  const deletingItem = useUIStore((s) => s.deletingItem)
   const openCreateItem = useUIStore((s) => s.openCreateItem)
 
   const foldersOnly = usePreferencesStore(
@@ -78,7 +79,10 @@ export function BookmarkOrganizerSheet() {
     revealPath !== null &&
     rootFolder !== null &&
     !revealPath.some((node) => node.id === rootFolder.id)
-  const showBookmarks = !foldersOnly || revealTarget?.url != null
+  const showBookmarks =
+    !foldersOnly ||
+    revealTarget?.url != null ||
+    revealTarget?.type === "separator"
   // Every header control describes the tree actually on screen, so a widened
   // visit creates where it is showing rather than where the saved root points.
   const shownRootFolderId = revealNeedsWholeSource ? null : rootFolderId
@@ -87,9 +91,24 @@ export function BookmarkOrganizerSheet() {
     shownRootFolderId,
     adapter?.capabilities.rootIsCreatable ?? false
   )
+  const createParent = createParentId
+    ? findNodeById(tree, createParentId)
+    : null
 
   const treeRef = React.useRef<BookmarkOrganizerTreeHandle>(null)
   const lastCreatingItemRef = React.useRef<{ parentId: string } | null>(null)
+  const deletedSeparatorParentRef = React.useRef<string | null>(null)
+
+  React.useEffect(() => {
+    if (deletingItem?.type === "separator") {
+      const path = findNodePath(tree, deletingItem.id)
+      if (path && path.length > 1)
+        deletedSeparatorParentRef.current = path[path.length - 2].id
+    } else if (!deletingItem && deletedSeparatorParentRef.current) {
+      treeRef.current?.invalidate(deletedSeparatorParentRef.current)
+      deletedSeparatorParentRef.current = null
+    }
+  }, [deletingItem, tree])
 
   React.useEffect(() => {
     if (creatingItem) {
@@ -135,7 +154,7 @@ export function BookmarkOrganizerSheet() {
                 label="Root folder"
                 description={
                   revealNeedsWholeSource
-                    ? "Widened to the whole source to show a search result. Your saved root folder is unchanged."
+                    ? `Widened to the whole source to show ${revealTarget?.type === "separator" ? "the selected separator" : "a search result"}. Your saved root folder is unchanged.`
                     : "Changes apply to the selected root subtree."
                 }
                 value={shownRootFolderId}
@@ -205,6 +224,22 @@ export function BookmarkOrganizerSheet() {
                           />
                           New Bookmark
                         </DropdownMenuItem>
+                        {adapter?.capabilities.separators &&
+                          adapter.bookmarks.createSeparator &&
+                          !createParent?.readOnly &&
+                          !createParent?.orderReadOnly && (
+                            <DropdownMenuItem
+                              onClick={async () => {
+                                const created = await useBookmarkStore
+                                  .getState()
+                                  .createSeparator(createParentId)
+                                if (created)
+                                  treeRef.current?.invalidate(createParentId)
+                              }}
+                            >
+                              Add separator
+                            </DropdownMenuItem>
+                          )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (

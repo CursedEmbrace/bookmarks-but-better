@@ -147,6 +147,12 @@ function engineAdapter(
     getTree: () => gate(() => engine.getTree(), "read"),
     getSubTree: (id) => gate(() => engine.getSubTree(id), "read"),
     create: (bookmark) => gate(() => engine.create(bookmark), "write"),
+    ...(capabilities.separators
+      ? {
+          createSeparator: (parentId: string, index?: number) =>
+            gate(() => engine.createSeparator(parentId, index), "write"),
+        }
+      : {}),
     update: (id, changes) => gate(() => engine.update(id, changes), "write"),
     remove: (id) => gate(() => engine.remove(id), "write"),
     removeTree: (id) => gate(() => engine.removeTree(id), "write"),
@@ -254,7 +260,10 @@ export async function devAdapterForSource(
     return engineAdapter(
       engine,
       "browser",
-      flavorCapabilities("browser"),
+      {
+        ...flavorCapabilities("browser"),
+        separators: scenario.capabilities.buildTarget === "firefox",
+      },
       passthroughGate
     )
   }

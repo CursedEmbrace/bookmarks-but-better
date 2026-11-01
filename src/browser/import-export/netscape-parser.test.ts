@@ -76,12 +76,28 @@ describe("parseNetscapeBookmarks", () => {
     ])
   })
 
-  it("ignores separators", () => {
+  it("preserves native separators", () => {
     const html = wrap(`    <DT><A HREF="https://a.com">A</A>
     <HR>
     <DT><A HREF="https://b.com">B</A>`)
 
-    expect(parseNetscapeBookmarks(html)[0].children).toHaveLength(2)
+    expect(parseNetscapeBookmarks(html)[0].children).toHaveLength(3)
+    expect(parseNetscapeBookmarks(html)[0].children?.[1].type).toBe("separator")
+  })
+
+  it("keeps separators after malformed links while dropping the invalid links", () => {
+    const html = wrap(`    <DT><A>Broken</A>
+    <HR>
+    <HR>
+    <DT><A HREF="https://ok.com">Fine</A>
+    <DT><A HREF="">Also broken</A>
+    <HR>`)
+
+    expect(
+      parseNetscapeBookmarks(html)[0].children?.map((node) =>
+        node.type === "separator" ? "separator" : node.url
+      )
+    ).toEqual(["separator", "separator", "https://ok.com", "separator"])
   })
 
   it("returns an empty tree for a file with no list at all", () => {

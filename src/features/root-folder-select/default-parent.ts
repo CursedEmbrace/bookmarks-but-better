@@ -35,7 +35,7 @@ export function resolveDefaultCreateParentId(
   if (!root) return null
 
   const childFolders = (root.children ?? []).filter(
-    (child) => child.url === undefined
+    (child) => child.url === undefined && child.type !== "separator"
   )
 
   const bookmarksBar = childFolders.find((child) =>

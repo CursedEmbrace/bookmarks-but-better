@@ -1,3 +1,4 @@
+import { isCardEntry } from "@/lib/bookmark-utils"
 import type { BookmarkNode } from "@/browser"
 import { buildChildOrderForBookmarkReorder } from "@/features/dnd"
 import type { CardDisplay } from "@/stores/preferences-store"
@@ -24,7 +25,7 @@ export type CardItemsDisplay = Pick<
 /** One stop in the grid's roving tab order. */
 export type GridNavigationItem =
   | { kind: "folder"; id: string }
-  | { kind: "bookmark"; id: string; folderId: string }
+  | { kind: "bookmark" | "separator"; id: string; folderId: string }
 
 export interface GridPosition {
   column: number
@@ -46,8 +47,12 @@ export function collectCardItems(
   if (display.collapsedFolders[folder.id]) return items
 
   for (const child of children) {
-    if (child.url !== undefined) {
-      items.push({ kind: "bookmark", id: child.id, folderId: folder.id })
+    if (isCardEntry(child)) {
+      items.push({
+        kind: child.type === "separator" ? "separator" : "bookmark",
+        id: child.id,
+        folderId: folder.id,
+      })
     }
   }
 
@@ -217,11 +222,11 @@ export function planBookmarkReorder(params: {
   capabilities: GridOrderingCapabilities
 }): GridReorderPlan | null {
   const { folder, bookmarkId, delta, capabilities } = params
-  if (!folder) return null
+  if (!folder || folder.readOnly || folder.orderReadOnly) return null
   if (!capabilities.reorder && !capabilities.setChildOrder) return null
 
   const children = folder.children ?? []
-  const bookmarks = children.filter((child) => child.url !== undefined)
+  const bookmarks = children.filter(isCardEntry)
   const index = bookmarks.findIndex((child) => child.id === bookmarkId)
   if (index === -1) return null
   if (bookmarks[index].readOnly) return null
@@ -230,21 +235,17 @@ export function planBookmarkReorder(params: {
   if (targetIndex < 0 || targetIndex >= bookmarks.length) return null
 
   if (capabilities.reorder) {
-    // The bookmarks-only index the card renders, which is what the drag path
-    // already sends to the same `move(id, {index})` call. Handing the two
-    // paths different indices would make one of them wrong.
+    // Native indices count every child, including subfolders. The move
+    // contract expresses the destination after removing the source.
     return {
       kind: "move",
       id: bookmarkId,
       parentId: folder.id,
-      index: targetIndex,
+      index: children.findIndex(
+        (child) => child.id === bookmarks[targetIndex].id
+      ),
     }
   }
-
-  // A folder whose order file is frozen accepts renames, moves and deletes
-  // but refuses positional changes, so this one is withheld instead of being
-  // sent and rejected.
-  if (folder.orderReadOnly) return null
 
   // Reuses the drag path's permutation builder, which re-derives both
   // positions from the live children and refuses when either id is gone —

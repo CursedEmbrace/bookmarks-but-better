@@ -1,5 +1,6 @@
 import * as React from "react"
 import { useBookmarkStore } from "@/stores/bookmark-store"
+import { useUIStore } from "@/stores/ui-store"
 import { useCardDisplay, usePreferencesStore } from "@/stores/preferences-store"
 import { BookmarkCard } from "@/features/bookmark-card"
 import { useSortableFolder, DropIndicator } from "@/features/dnd"
@@ -79,6 +80,15 @@ export function BookmarkGrid() {
   const rootFolder = useBookmarkStore((s) => s.rootFolder)
   const tree = useBookmarkStore((s) => s.tree)
   const isLoading = useBookmarkStore((s) => s.isLoading)
+  const mutationError = useBookmarkStore((s) => s.mutationError)
+  const mutationDialogOpen = useUIStore((s) =>
+    Boolean(
+      s.creatingItem ||
+      s.editingBookmark ||
+      s.deletingItem ||
+      s.bookmarkOrganizerOpen
+    )
+  )
   // Either capability means the adapter can express an order, which is all a
   // folder-card drag needs — the card order itself is a client-local
   // preference, never written through an adapter.
@@ -167,6 +177,11 @@ export function BookmarkGrid() {
       )}
     >
       <GridNavigationContext value={navigation}>
+        {mutationError && !mutationDialogOpen && (
+          <p role="alert" className="mb-3 text-sm text-destructive">
+            {mutationError}
+          </p>
+        )}
         <LazyCardsContext value={gateCards}>
           <div
             {...containerProps}
