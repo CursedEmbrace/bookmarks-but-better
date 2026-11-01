@@ -32,6 +32,7 @@ interface UIState {
   bookmarkOrganizerOpen: boolean
   onboardingOpen: boolean
   editingBookmark: BookmarkNode | null
+  iconEditor: { bookmark: BookmarkNode; returnFocus?: HTMLElement } | null
   deletingItem: DeletingItem | null
   creatingItem: CreateItemRequest | null
   searchPalette: SearchPaletteRequest | null
@@ -64,6 +65,8 @@ interface UIState {
   closeOnboarding(): void
   openEditor(bookmark: BookmarkNode): void
   closeEditor(): void
+  openIconEditor(bookmark: BookmarkNode, returnFocus?: HTMLElement): void
+  closeIconEditor(): void
   openDeleteConfirm(item: DeletingItem): void
   closeDeleteConfirm(): void
   openCreateItem(request: CreateItemRequest): void
@@ -76,6 +79,7 @@ export const useUIStore = create<UIState>((set) => ({
   bookmarkOrganizerOpen: false,
   onboardingOpen: false,
   editingBookmark: null,
+  iconEditor: null,
   deletingItem: null,
   creatingItem: null,
   searchPalette: null,
@@ -104,6 +108,9 @@ export const useUIStore = create<UIState>((set) => ({
   closeOnboarding: () => set({ onboardingOpen: false }),
   openEditor: (bookmark) => set({ editingBookmark: bookmark }),
   closeEditor: () => set({ editingBookmark: null }),
+  openIconEditor: (bookmark, returnFocus) =>
+    set({ iconEditor: { bookmark, returnFocus } }),
+  closeIconEditor: () => set({ iconEditor: null }),
   openDeleteConfirm: (item) => set({ deletingItem: item }),
   closeDeleteConfirm: () => set({ deletingItem: null }),
   openCreateItem: (request) => set({ creatingItem: request }),

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useSourceStore } from "@/stores/source-store"
+import { useCustomIconStore } from "@/stores/custom-icon-store"
 import { useUIStore } from "@/stores/ui-store"
 import { usePreferencesStore } from "@/stores/preferences-store"
 import { BookmarkGrid } from "@/features/bookmark-grid"
@@ -27,6 +28,12 @@ import { useAppBootstrap } from "@/hooks/use-app-bootstrap"
 // mounted before the palette exists, and the barrel would defeat the lazy
 // chunk below.
 import { useSearchTypeAhead } from "@/features/search-palette/use-search-type-ahead"
+
+const IconEditorDialog = React.lazy(() =>
+  import("@/features/custom-icons/icon-editor-dialog").then((m) => ({
+    default: m.IconEditorDialog,
+  }))
+)
 
 const SettingsDialog = React.lazy(() =>
   import("@/features/settings").then((m) => ({ default: m.SettingsDialog }))
@@ -76,6 +83,7 @@ export function App() {
   const onboardingOpen = useUIStore((s) => s.onboardingOpen)
   const closeOnboarding = useUIStore((s) => s.closeOnboarding)
   const openSettings = useUIStore((s) => s.openSettings)
+  const iconError = useCustomIconStore((s) => s.error)
   const sourceStatus = useSourceStore((s) => s.status)
   const hasActiveSource = useSourceStore((s) => s.activeSourceId !== null)
   const switching = useSourceStore((s) => s.switching)
@@ -173,6 +181,11 @@ export function App() {
 
         <main className="flex flex-col gap-5">
           {sourceStatus === "ready" && <StandaloneDeprecationBanner />}
+          {iconError && (
+            <p role="alert" className="text-sm text-destructive">
+              {iconError}
+            </p>
+          )}
 
           {sourceStatus === "ready" && !hasActiveSource ? (
             <div
@@ -255,6 +268,7 @@ export function App() {
         <SettingsDialog />
         <SearchPaletteDialog />
         <BookmarkEditorDialog />
+        <IconEditorDialog />
         <DeleteConfirmDialog />
         <BookmarkOrganizerSheet />
         {onboardingOpen && onboardingChecked && (

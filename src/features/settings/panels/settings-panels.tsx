@@ -1,4 +1,5 @@
 import * as React from "react"
+import { IconBackupPanel } from "@/features/custom-icons/icon-backup-panel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
@@ -305,8 +306,9 @@ export function DataMigrationPanel({
       <SettingSection title="Bookmarks data">
         <SettingGroup>
           <SettingRow
-            title="Import"
-            description="Bring in bookmarks from an HTML file (the standard browser format) or a CSV export from Raindrop or Pocket. They land in the active source."
+            layout="action"
+            title="Import bookmarks"
+            description="Add HTML bookmarks or a Raindrop / Pocket CSV export to the Active Source."
             control={
               <Tooltip>
                 <TooltipTrigger
@@ -314,6 +316,8 @@ export function DataMigrationPanel({
                     <Button
                       variant="outline"
                       size="sm"
+                      className="cursor-pointer active:bg-input/70"
+                      aria-label="Import bookmarks"
                       disabled={importDisabledReason !== null}
                       onClick={handlePickImportFile}
                     >
@@ -400,13 +404,19 @@ export function DataMigrationPanel({
             </p>
           )}
           <SettingRow
-            title="Export"
+            layout="action"
+            title="Export bookmarks"
             description="Save bookmarks as an HTML file you can import into any browser."
             control={
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="cursor-pointer active:bg-input/70"
+                      aria-label="Export bookmarks"
+                    >
                       Export…
                     </Button>
                   }
@@ -435,6 +445,8 @@ export function DataMigrationPanel({
           />
         </SettingGroup>
       </SettingSection>
+
+      <IconBackupPanel />
 
       {activePlan && (
         <ImportConflictDialog

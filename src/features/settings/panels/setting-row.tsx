@@ -1,4 +1,5 @@
 import * as React from "react"
+import { cn } from "@/lib/utils"
 
 /**
  * The building blocks every settings panel is laid out with: a muted section
@@ -34,16 +35,28 @@ export function SettingRow({
   description,
   control,
   htmlFor,
+  layout = "default",
+  children,
 }: {
   title: string
   description?: React.ReactNode
   control: React.ReactNode
   /** The control's id, so the title labels it for assistive technology. */
   htmlFor?: string
+  /** Action rows respond to the panel's available width and can include supporting feedback. */
+  layout?: "default" | "action"
+  children?: React.ReactNode
 }) {
   const Title = htmlFor ? "label" : "span"
-  return (
-    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+  const row = (
+    <div
+      className={cn(
+        "flex flex-col gap-3 p-4",
+        layout === "action"
+          ? "@md:flex-row @md:items-center @md:justify-between"
+          : "sm:flex-row sm:items-center sm:justify-between"
+      )}
+    >
       <div className="flex min-w-0 flex-col gap-1">
         <Title htmlFor={htmlFor} className="text-sm font-medium">
           {title}
@@ -52,7 +65,25 @@ export function SettingRow({
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">{control}</div>
+      <div
+        className={cn(
+          "flex shrink-0 items-center gap-2",
+          layout === "action" && "max-w-full min-w-0"
+        )}
+      >
+        {control}
+      </div>
+    </div>
+  )
+  if (layout === "default") return row
+  return (
+    <div className="@container" data-slot="setting-action-row">
+      {row}
+      {children && (
+        <div className="flex flex-col gap-2 px-4 pb-4 text-xs text-muted-foreground">
+          {children}
+        </div>
+      )}
     </div>
   )
 }

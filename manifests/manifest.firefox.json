@@ -36,6 +36,7 @@
     "keyword": "bb"
   },
   "permissions": ["activeTab", "bookmarks", "storage"],
+  "optional_permissions": ["downloads"],
   "host_permissions": ["https://t1.gstatic.com/*"],
   "optional_host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
   "icons": {
