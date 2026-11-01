@@ -11,22 +11,22 @@ bun run test:ui      # Playwright coverage against an isolated dev server (port 
 
 The workbench (bottom-left pill) exposes deterministic, URL-addressable scenarios:
 
-| URL | Scenario |
-| --- | --- |
-| `/?scenario=fresh-chrome` | A brand-new extension profile: empty Browser Source, onboarding still to do. The one scenario with the extension and omnibox capabilities, so the wizard's source question and its `bb` tip are visible here |
-| `/?scenario=firefox-separators` | Browser Source with native separators, including a nested folder; supports separator creation and persistence |
-| `/?scenario=browser-only` | Browser bookmarks, no daemon |
-| `/?scenario=browser-daemon` *(default)* | Browser bookmarks plus a daemon hosting the `reading` and `archive` Vaults |
-| `/?scenario=multi-vault` | One daemon hosting four Vaults, no Browser Source |
-| `/?scenario=daemon-offline` | Browser plus a currently unreachable daemon |
-| `/?scenario=slow-daemon` | Every daemon operation takes 1.2s — loading states on display |
-| `/?scenario=legacy-standalone` | A sunset-cohort profile with the legacy Standalone source active |
-| `/?scenario=safari` | Safari's world: no Browser Source, a daemon Vault is the only way in |
-| `/?scenario=fresh-safari` | Safari's world before setup: no source, and onboarding with no source question |
-| `/?scenario=empty` | Nothing enabled — the dashboard's own empty state |
-| `/?scenario=large-library` | Hundreds of seeded bookmarks |
-| `/?scenario=huge-library` | Over ten thousand bookmarks in nested folders — the collection size that used to hang the tab (issue #75) |
-| `/?scenario=large-tree` | Exactly 10,000 bookmarks in 300 irregular folders up to four levels deep, from a seeded generator — the fixture grid performance is measured against (issue #85) |
+| URL                                     | Scenario                                                                                                                                                                                                     |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/?scenario=fresh-chrome`               | A brand-new extension profile: empty Browser Source, onboarding still to do. The one scenario with the extension and omnibox capabilities, so the wizard's source question and its `bb` tip are visible here |
+| `/?scenario=firefox-separators`         | Browser Source with native separators, including a nested folder; supports separator creation and persistence                                                                                                |
+| `/?scenario=browser-only`               | Browser bookmarks, no daemon                                                                                                                                                                                 |
+| `/?scenario=browser-daemon` _(default)_ | Browser bookmarks plus a daemon hosting the `reading` and `archive` Vaults                                                                                                                                   |
+| `/?scenario=multi-vault`                | One daemon hosting four Vaults, no Browser Source                                                                                                                                                            |
+| `/?scenario=daemon-offline`             | Browser plus a currently unreachable daemon                                                                                                                                                                  |
+| `/?scenario=slow-daemon`                | Every daemon operation takes 1.2s — loading states on display                                                                                                                                                |
+| `/?scenario=legacy-standalone`          | A sunset-cohort profile with the legacy Standalone source active                                                                                                                                             |
+| `/?scenario=safari`                     | Safari's world: no Browser Source, a daemon Vault is the only way in                                                                                                                                         |
+| `/?scenario=fresh-safari`               | Safari's world before setup: no source, and onboarding with no source question                                                                                                                               |
+| `/?scenario=empty`                      | Nothing enabled — the dashboard's own empty state                                                                                                                                                            |
+| `/?scenario=large-library`              | Hundreds of seeded bookmarks                                                                                                                                                                                 |
+| `/?scenario=huge-library`               | Over ten thousand bookmarks in nested folders — the collection size that used to hang the tab (issue #75)                                                                                                    |
+| `/?scenario=large-tree`                 | Exactly 10,000 bookmarks in 300 irregular folders up to four levels deep, from a seeded generator — the fixture grid performance is measured against (issue #85)                                             |
 
 - **Scenario state persists** in IndexedDB while you develop: mutations, the active source and preference changes all survive reloads. Navigating without a `?scenario` parameter keeps the persisted scenario; navigating with one applies it.
 - **Reset Scenario** deterministically restores the seed: the revision bumps, every simulated source and the profile's Source Configuration are reseeded, and the page reloads into the scenario's URL.
