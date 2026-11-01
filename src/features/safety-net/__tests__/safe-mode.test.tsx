@@ -13,6 +13,7 @@ import App from "@/App"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { ProfileStorageAdapter } from "@/stores/profile-storage"
+import { useBookmarkStore } from "@/stores/bookmark-store"
 import type { BrowserAdapter } from "@/browser"
 
 vi.mock("@/sources/adapters", async (importOriginal) => {
@@ -110,6 +111,9 @@ async function renderAppWithBrowserSource() {
     await import("@/stores/source-store")
   const { emptySourceConfig } = await import("@/sources/config")
   resetSourceSession()
+  // Do not let the next test match the previous session's grid before its
+  // asynchronous bootstrap finishes (and then tear down an in-flight import).
+  useBookmarkStore.getState().reset()
   useSourceStore.setState({
     status: "loading",
     switching: false,

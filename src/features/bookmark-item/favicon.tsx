@@ -1,10 +1,12 @@
 import * as React from "react"
+import { useCustomIconStore } from "@/stores/custom-icon-store"
 import { cn } from "@/lib/utils"
 import { isGoogleDefaultGlobe } from "@/browser/favicon/detect-default-globe"
 import { faviconResolver } from "@/browser/favicon/resolve"
 import { useFaviconSources } from "./use-favicon"
 
 interface FaviconProps {
+  bookmarkId?: string
   url: string
   title: string
   className?: string
@@ -37,7 +39,31 @@ const SHARP_ABOVE_PX = 24
  * is the only place the globe is visible. Treating it as an error is what makes
  * the letter win for sites Google has nothing for.
  */
-export function Favicon({ url, title, className, size = 20 }: FaviconProps) {
+export function Favicon(props: FaviconProps) {
+  const custom = useCustomIconStore((s) =>
+    props.bookmarkId && Object.hasOwn(s.images, props.bookmarkId)
+      ? s.images[props.bookmarkId]
+      : undefined
+  )
+  const [failed, setFailed] = React.useState<string | null>(null)
+  if (custom && custom !== failed) {
+    const size = props.size ?? 20
+    return (
+      <img
+        src={custom}
+        alt=""
+        data-custom-icon="true"
+        draggable="false"
+        className={cn("shrink-0 rounded-sm object-contain", props.className)}
+        style={{ width: size, height: size, minWidth: size, minHeight: size }}
+        onError={() => setFailed(custom)}
+      />
+    )
+  }
+  return <WebsiteFavicon {...props} />
+}
+
+function WebsiteFavicon({ url, title, className, size = 20 }: FaviconProps) {
   const { sources, pending } = useFaviconSources(url, size > SHARP_ABOVE_PX)
   // How far into *this* list of sources the walk has got. Carrying the list
   // itself in the state is what makes a new list start over at zero without a

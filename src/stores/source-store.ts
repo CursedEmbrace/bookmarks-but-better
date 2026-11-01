@@ -404,7 +404,7 @@ async function transitionTo(
   // time. Settled rather than raced: the bookmark session's cleanup must be
   // taken whatever the preferences did.
   const [bookmarks, preferences] = await Promise.allSettled([
-    useBookmarkStore.getState().init(adapter, { isCurrent }),
+    useBookmarkStore.getState().init(adapter, { isCurrent, iconSource: id }),
     usePreferencesStore.getState().init(adapter, { isCurrent }),
   ])
   if (bookmarks.status === "rejected") throw bookmarks.reason
@@ -438,6 +438,7 @@ function closeNodeBoundUi(): void {
   const ui = useUIStore.getState()
   ui.closeBookmarkOrganizer()
   ui.closeEditor()
+  ui.closeIconEditor()
   ui.closeDeleteConfirm()
   ui.closeCreateItem()
 }

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { ChangeIconButton } from "@/features/custom-icons/change-icon-button"
 import {
   Dialog,
   DialogContent,
@@ -96,6 +97,9 @@ export function BookmarkEditorDialog() {
               </div>
             )}
 
+            {editingBookmark && !isFolder && (
+              <ChangeIconButton bookmark={editingBookmark} />
+            )}
             {mutationError && (
               <p role="alert" className="text-sm text-destructive">
                 {mutationError}

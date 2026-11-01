@@ -1,4 +1,6 @@
 import * as React from "react"
+import { ChangeIconButton } from "@/features/custom-icons/change-icon-button"
+import { canEditCustomIcon } from "@/features/custom-icons/eligibility"
 import { Favicon } from "./favicon"
 import {
   HoverCard,
@@ -20,6 +22,7 @@ import {
 } from "@hugeicons/core-free-icons"
 import type { BookmarkNode } from "@/browser"
 import { useUIStore } from "@/stores/ui-store"
+import { useCustomIconStore } from "@/stores/custom-icon-store"
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useSortableBookmark, DropIndicator } from "@/features/dnd"
 // Past the grid's barrel on purpose: importing it would pull `BookmarkGrid`,
@@ -77,6 +80,24 @@ export const BookmarkItem = React.memo(function BookmarkItem({
   // hover card already renders, so `Enter` stays the browser's own "follow
   // this link" rather than something re-implemented here.
   const gridItem = useGridItem(bookmark.id)
+  const bookmarkLink = React.useRef<HTMLAnchorElement>(null)
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      event.key.toLowerCase() === "i" &&
+      canEditCustomIcon(bookmark) &&
+      useCustomIconStore.getState().source
+    ) {
+      event.preventDefault()
+      event.stopPropagation()
+      useUIStore.getState().openIconEditor(bookmark, event.currentTarget)
+    } else {
+      gridItem.onKeyDown(event)
+    }
+  }
 
   const openEditor = useUIStore((s) => s.openEditor)
   const openDeleteConfirm = useUIStore((s) => s.openDeleteConfirm)
@@ -138,11 +159,19 @@ export const BookmarkItem = React.memo(function BookmarkItem({
                 href={bookmark.url}
                 draggable="false"
                 {...gridItem}
+                ref={(element) => {
+                  bookmarkLink.current = element
+                  gridItem.ref(element)
+                }}
+                onKeyDown={handleKeyDown}
+                aria-keyshortcuts="Alt+i"
+                aria-label={bookmark.title}
                 className="flex items-center justify-center rounded-lg border border-transparent p-2 transition-colors outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               />
             }
           >
             <Favicon
+              bookmarkId={bookmark.id}
               url={bookmark.url ?? ""}
               title={bookmark.title}
               size={40}
@@ -151,6 +180,7 @@ export const BookmarkItem = React.memo(function BookmarkItem({
           <HoverCardContent side="bottom" className="w-64">
             <HoverCardBody
               bookmark={bookmark}
+              returnFocus={bookmarkLink}
               onInsertSeparator={
                 adapter?.capabilities.separators &&
                 adapter.bookmarks.createSeparator &&
@@ -188,11 +218,23 @@ export const BookmarkItem = React.memo(function BookmarkItem({
               href={bookmark.url}
               draggable="false"
               {...gridItem}
+              ref={(element) => {
+                bookmarkLink.current = element
+                gridItem.ref(element)
+              }}
+              onKeyDown={handleKeyDown}
+              aria-keyshortcuts="Alt+i"
+              aria-label={bookmark.title}
               className="flex min-w-0 items-center gap-2.5 rounded-lg border border-transparent px-2 py-2.5 transition-colors outline-none hover:bg-accent focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:py-1.5"
             />
           }
         >
-          <Favicon url={bookmark.url ?? ""} title={bookmark.title} size={16} />
+          <Favicon
+            bookmarkId={bookmark.id}
+            url={bookmark.url ?? ""}
+            title={bookmark.title}
+            size={16}
+          />
           <span className="min-w-0 truncate text-base sm:text-sm">
             {bookmark.title}
           </span>
@@ -200,6 +242,7 @@ export const BookmarkItem = React.memo(function BookmarkItem({
         <HoverCardContent side="right" className="w-72">
           <HoverCardBody
             bookmark={bookmark}
+            returnFocus={bookmarkLink}
             onInsertSeparator={
               adapter?.capabilities.separators &&
               adapter.bookmarks.createSeparator &&
@@ -230,8 +273,10 @@ const HoverCardBody = React.memo(function HoverCardBody({
   onDelete,
   onOpenInManager,
   onInsertSeparator,
+  returnFocus,
 }: {
   bookmark: BookmarkNode
+  returnFocus: React.RefObject<HTMLAnchorElement | null>
   onEdit: (e: React.MouseEvent) => void
   onCopyUrl: (e: React.MouseEvent) => void
   onDelete: (e: React.MouseEvent) => void
@@ -261,6 +306,7 @@ const HoverCardBody = React.memo(function HoverCardBody({
               <Button
                 variant="ghost"
                 size="icon-sm"
+                aria-label="Edit"
                 aria-disabled={isReadOnly || undefined}
                 onClick={isReadOnly ? (e) => e.preventDefault() : onEdit}
               />
@@ -270,31 +316,27 @@ const HoverCardBody = React.memo(function HoverCardBody({
           </TooltipTrigger>
           <TooltipContent>{readOnlyReason ?? "Edit"}</TooltipContent>
         </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button variant="ghost" size="icon-sm" onClick={onCopyUrl} />
-            }
-          >
-            <HugeiconsIcon icon={Copy01Icon} size={14} />
-          </TooltipTrigger>
-          <TooltipContent>Copy URL</TooltipContent>
-        </Tooltip>
+        <ChangeIconButton
+          bookmark={bookmark}
+          footer
+          returnFocus={returnFocus}
+        />
         <Tooltip>
           <TooltipTrigger
             render={
               <Button
                 variant="ghost"
                 size="icon-sm"
-                aria-disabled={isReadOnly || undefined}
-                onClick={isReadOnly ? (e) => e.preventDefault() : onDelete}
+                aria-label="Copy Link"
+                onClick={onCopyUrl}
               />
             }
           >
-            <HugeiconsIcon icon={Delete02Icon} size={14} />
+            <HugeiconsIcon icon={Copy01Icon} size={14} />
           </TooltipTrigger>
-          <TooltipContent>{readOnlyReason ?? "Delete"}</TooltipContent>
+          <TooltipContent>Copy Link</TooltipContent>
         </Tooltip>
+
         {onOpenInManager && (
           <Tooltip>
             <TooltipTrigger
@@ -302,6 +344,7 @@ const HoverCardBody = React.memo(function HoverCardBody({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  aria-label="Show in bookmark manager"
                   onClick={onOpenInManager}
                 />
               }
@@ -311,6 +354,23 @@ const HoverCardBody = React.memo(function HoverCardBody({
             <TooltipContent>Show in bookmark manager</TooltipContent>
           </Tooltip>
         )}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="ml-auto text-destructive hover:text-destructive"
+                aria-label="Delete"
+                aria-disabled={isReadOnly || undefined}
+                onClick={isReadOnly ? (e) => e.preventDefault() : onDelete}
+              />
+            }
+          >
+            <HugeiconsIcon icon={Delete02Icon} size={14} />
+          </TooltipTrigger>
+          <TooltipContent>{readOnlyReason ?? "Delete"}</TooltipContent>
+        </Tooltip>
       </div>
     </div>
   )

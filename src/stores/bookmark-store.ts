@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { useCustomIconStore } from "@/stores/custom-icon-store"
 import type {
   BookmarkDiagnostic,
   BookmarkNode,
@@ -118,7 +119,7 @@ interface BookmarkState {
   // Actions
   init(
     adapter: BrowserAdapter,
-    options?: { isCurrent?: () => boolean }
+    options?: { isCurrent?: () => boolean; iconSource?: string }
   ): Promise<void | (() => void)>
   /**
    * Clears everything and returns to the pre-init state. Used when the
@@ -193,6 +194,9 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
       return () => adapter.bookmarks.dispose?.()
     }
 
+    useCustomIconStore.getState().activate(options.iconSource ?? null)
+    const readStartedAt = Date.now()
+
     set({
       adapter,
       isLoading: true,
@@ -245,6 +249,13 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     const savedRootId = await adapter.storage.get<string>("rootFolderId")
     if (!isCurrent()) return cleanup
 
+    if (options.iconSource) {
+      await useCustomIconStore
+        .getState()
+        .reconcile(options.iconSource, tree, readStartedAt)
+      if (!isCurrent()) return cleanup
+    }
+
     const rootFolder = savedRootId ? findNode(tree, savedRootId) : null
 
     set({
@@ -258,6 +269,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   },
 
   reset() {
+    useCustomIconStore.getState().activate(null)
     set({
       tree: [],
       rootFolderId: null,
@@ -281,12 +293,18 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     const { adapter } = get()
     if (!adapter) return
 
+    const iconSource = useCustomIconStore.getState().source
+    const readStartedAt = Date.now()
     try {
       const tree = await adapter.bookmarks.getTree()
       if (get().adapter !== adapter) return
       const { rootFolderId } = get()
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       set({ tree, rootFolder, status: "ready", loadError: null })
+      if (iconSource)
+        await useCustomIconStore
+          .getState()
+          .reconcile(iconSource, tree, readStartedAt)
     } catch (error) {
       if (get().adapter !== adapter) return
       set({ status: "unavailable", loadError: toErrorMessage(error) })
@@ -297,8 +315,16 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     const { adapter, rootFolderId } = get()
     if (!adapter) return
     set({ status: "loading", loadError: null })
+    const iconSource = useCustomIconStore.getState().source
+    const readStartedAt = Date.now()
     try {
       const tree = await loadTree(adapter)
+      if (get().adapter !== adapter) return
+      if (iconSource)
+        await useCustomIconStore
+          .getState()
+          .reconcile(iconSource, tree, readStartedAt)
+      if (get().adapter !== adapter) return
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       // `isLoading` too: a failed load leaves it true (init only clears it
       // on success), so a retry that succeeds must clear it as well or the
