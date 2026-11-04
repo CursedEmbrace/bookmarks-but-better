@@ -3,6 +3,7 @@ import type { BookmarkNode } from "@/browser"
 import { collectCardItems, type CardItemsDisplay } from "./grid-navigation"
 import { GridNavigationContext, NO_SUBSCRIPTION } from "./use-grid-navigation"
 import { LazyCardsContext } from "./lazy-cards-gate"
+import { cn } from "@/lib/utils"
 
 /**
  * A folder card that exists in full only near the viewport.
@@ -34,7 +35,7 @@ import { LazyCardsContext } from "./lazy-cards-gate"
 /** How far beyond the viewport a card is already worth mounting. */
 const NEAR_VIEWPORT_MARGIN = "100% 0px"
 
-type OnNear = (near: boolean, height: number) => void
+type OnNear = (near: boolean, height: number, width: number) => void
 
 const observed = new WeakMap<Element, OnNear>()
 
@@ -94,11 +95,64 @@ function observeNear(element: Element, onNear: OnNear): () => void {
     shared = {
       observer: new IntersectionObserver(
         (entries) => {
+          // Mounting a neighbour can change a wrapped row's height after a
+          // keyboard jump has scrolled the focused compact card into view.
+          // Keep that visible focus in view after this batch settles, without
+          // fighting a user who scrolls away or moves focus in the meantime.
+          const focused = document.activeElement
+          const bounds = root?.getBoundingClientRect() ?? {
+            top: 0,
+            bottom: window.innerHeight,
+          }
+          const focusBounds = focused?.getBoundingClientRect()
+          const keepFocusVisible =
+            focused instanceof HTMLElement &&
+            focused.matches(":focus-visible") &&
+            focused.closest('[data-compact="true"]') &&
+            (!root || root.contains(focused)) &&
+            focusBounds &&
+            focusBounds.top >= bounds.top &&
+            focusBounds.bottom <= bounds.bottom
           for (const entry of entries) {
             observed.get(entry.target)?.(
               entry.isIntersecting,
-              entry.boundingClientRect.height
+              entry.boundingClientRect.height,
+              entry.boundingClientRect.width
             )
+          }
+          if (keepFocusVisible) {
+            let interrupted = false
+            const interrupt = () => {
+              interrupted = true
+            }
+            // A changed scrollTop alone cannot distinguish user input from
+            // the browser's own scroll anchoring during the reflow.
+            const inputs = [
+              "wheel",
+              "touchmove",
+              "pointerdown",
+              "keydown",
+              "dragover",
+            ]
+            for (const input of inputs)
+              window.addEventListener(input, interrupt, {
+                capture: true,
+                passive: true,
+              })
+            requestAnimationFrame(() => {
+              for (const input of inputs)
+                window.removeEventListener(input, interrupt, true)
+              if (
+                interrupted ||
+                document.activeElement !== focused ||
+                !focused.isConnected
+              )
+                return
+              const next = focused.getBoundingClientRect()
+              if (next.top < bounds.top || next.bottom > bounds.bottom) {
+                focused.scrollIntoView({ block: "nearest", inline: "nearest" })
+              }
+            })
           }
         },
         { root, rootMargin: NEAR_VIEWPORT_MARGIN }
@@ -135,6 +189,8 @@ interface LazyCardProps {
    * real. A nested card is not measured — its parent is.
    */
   measureRef?: (element: HTMLElement | null) => void
+  className?: string
+  style?: React.CSSProperties
   children: React.ReactNode
 }
 
@@ -143,12 +199,14 @@ export function LazyCard({
   display,
   estimatedHeight,
   measureRef,
+  className,
+  style,
   children,
 }: LazyCardProps) {
   const gated = React.useContext(LazyCardsContext)
   if (!gated) {
     return (
-      <div ref={measureRef} className="min-w-0">
+      <div ref={measureRef} className={cn("min-w-0", className)} style={style}>
         {children}
       </div>
     )
@@ -159,6 +217,8 @@ export function LazyCard({
       display={display}
       estimatedHeight={estimatedHeight}
       measureRef={measureRef}
+      className={className}
+      style={style}
     >
       {children}
     </GatedCard>
@@ -170,6 +230,8 @@ function GatedCard({
   display,
   estimatedHeight,
   measureRef,
+  className,
+  style,
   children,
 }: LazyCardProps) {
   const navigation = React.useContext(GridNavigationContext)
@@ -191,26 +253,56 @@ function GatedCard({
   const [viewport, setViewport] = React.useState<{
     near: boolean
     lastHeight: number | null
+    lastWidth: number | null
+    measuredFolder?: BookmarkNode
+    measuredDisplay?: CardItemsDisplay
   }>(() => ({
     near: typeof IntersectionObserver === "undefined",
     lastHeight: null,
+    lastWidth: null,
   }))
-  const { near, lastHeight } = viewport
+  const { near, lastHeight, lastWidth, measuredFolder, measuredDisplay } =
+    viewport
 
-  const ref = React.useCallback((element: HTMLElement | null) => {
-    if (!element || typeof IntersectionObserver === "undefined") return
-    return observeNear(element, (isNear, height) => {
-      setViewport((previous) => ({
-        near: isNear,
-        lastHeight: !isNear && height > 0 ? height : previous.lastHeight,
-      }))
-    })
-  }, [])
+  const ref = React.useCallback(
+    (element: HTMLElement | null) => {
+      if (!element || typeof IntersectionObserver === "undefined") return
+      return observeNear(element, (isNear, height, width) => {
+        setViewport((previous) => {
+          const measured =
+            !isNear && width > 0 && (previous.near || holdsActiveItem)
+          return {
+            near: isNear,
+            lastHeight: !isNear && height > 0 ? height : previous.lastHeight,
+            lastWidth: measured ? width : previous.lastWidth,
+            measuredFolder: measured ? folder : previous.measuredFolder,
+            measuredDisplay: measured ? display : previous.measuredDisplay,
+          }
+        })
+      })
+    },
+    [folder, display, holdsActiveItem]
+  )
 
   const mounted = near || holdsActiveItem
 
   return (
-    <div ref={ref} className="min-w-0">
+    <div
+      ref={ref}
+      className={cn("min-w-0", className)}
+      style={{
+        ...style,
+        // A compact card must keep its horizontal footprint when virtualized,
+        // as well as its height. Content/preference changes invalidate it.
+        ...(!mounted &&
+        style?.width &&
+        lastWidth &&
+        measuredFolder === folder &&
+        measuredDisplay === display
+          ? { width: lastWidth }
+          : {}),
+      }}
+    >
       {mounted ? (
         <div ref={measureRef} className="min-w-0">
           {children}

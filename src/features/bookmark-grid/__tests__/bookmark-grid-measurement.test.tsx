@@ -90,6 +90,7 @@ function mount() {
   usePreferencesStore.setState({
     experimentalCardDrag: false,
     nestedFolders: true,
+    compactNestedFolders: false,
     folderOrder: [],
     cardLayouts: {},
     collapsedFolders: {},
@@ -238,6 +239,15 @@ describe("BookmarkGrid card measurement", () => {
       usePreferencesStore.setState({ cardLayouts: { two: "grid" } })
     })
     report(container, { one: 60, two: 100, three: 100 })
+    expect(columns(container)).toEqual([["one", "three"], ["two"]])
+  })
+
+  it("accepts shorter measurements when compact nested folders are enabled", () => {
+    const { container } = mount()
+    report(container, { one: 400, two: 100, three: 100 })
+    expect(columns(container)).toEqual([["one"], ["two", "three"]])
+    act(() => usePreferencesStore.setState({ compactNestedFolders: true }))
+    report(container, { one: 100, two: 100, three: 100 })
     expect(columns(container)).toEqual([["one", "three"], ["two"]])
   })
 

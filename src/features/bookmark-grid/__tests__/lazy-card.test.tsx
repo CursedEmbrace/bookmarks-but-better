@@ -7,6 +7,8 @@ import { useBookmarkStore } from "@/stores/bookmark-store"
 import { usePreferencesStore } from "@/stores/preferences-store"
 import { BookmarkGrid } from "../bookmark-grid"
 import { LAZY_CARDS_ABOVE } from "../lazy-cards-gate"
+import { LazyCardsContext } from "../lazy-cards-gate"
+import { LazyCard } from "../lazy-card"
 
 /**
  * The grid mounts a folder card only near the viewport (issue #75). These
@@ -38,7 +40,12 @@ class StubIntersectionObserver {
     this.targets.clear()
   }
 
-  report(near: Map<Element, { isIntersecting: boolean; height: number }>) {
+  report(
+    near: Map<
+      Element,
+      { isIntersecting: boolean; height: number; width?: number }
+    >
+  ) {
     const entries = Array.from(this.targets)
       .filter((target) => near.has(target))
       .map(
@@ -46,7 +53,10 @@ class StubIntersectionObserver {
           ({
             target,
             isIntersecting: near.get(target)!.isIntersecting,
-            boundingClientRect: { height: near.get(target)!.height },
+            boundingClientRect: {
+              height: near.get(target)!.height,
+              width: near.get(target)!.width,
+            },
           }) as unknown as IntersectionObserverEntry
       )
     if (entries.length > 0) {
@@ -178,6 +188,62 @@ describe("LazyCard", () => {
     vi.unstubAllGlobals()
   })
 
+  it("preserves a compact card's measured width and invalidates it when content or preferences change", () => {
+    const folder: BookmarkNode = {
+      id: "compact",
+      title: "Compact",
+      children: [],
+    }
+    const display = { nestedFolders: true, collapsedFolders: {} }
+    const style = { width: "max-content", minWidth: "160px", maxWidth: "100%" }
+    const renderCard = (node = folder, preferences = display) => (
+      <LazyCardsContext value={true}>
+        <LazyCard
+          folder={node}
+          display={preferences}
+          estimatedHeight={96}
+          style={style}
+          className="w-full"
+        >
+          <h3>{node.title}</h3>
+        </LazyCard>
+      </LazyCardsContext>
+    )
+    const view = render(renderCard())
+    const wrapper = view.container.firstElementChild as HTMLElement
+    const measure = (isIntersecting: boolean, width: number) =>
+      act(() => {
+        for (const observer of StubIntersectionObserver.instances)
+          observer.report(
+            new Map([[wrapper, { isIntersecting, width, height: 140 }]])
+          )
+      })
+    measure(true, 240)
+    measure(false, 240)
+    expect(wrapper.style.width).toBe("240px")
+    expect(wrapper.style.maxWidth).toBe("100%")
+    expect(view.getByTestId("bookmark-card-placeholder").style.minHeight).toBe(
+      "140px"
+    )
+
+    view.rerender(renderCard({ ...folder, title: "Renamed" }))
+    expect(wrapper.style.width).toBe("max-content")
+    // A placeholder notification must not relabel an old measurement as new.
+    measure(false, 180)
+    expect(wrapper.style.width).toBe("max-content")
+    measure(true, 220)
+    measure(false, 220)
+    expect(wrapper.style.width).toBe("220px")
+    view.rerender(renderCard(folder, { ...display }))
+    expect(wrapper.style.width).toBe("max-content")
+    view.unmount()
+    expect(
+      StubIntersectionObserver.instances.every(
+        (instance) => instance.targets.size === 0
+      )
+    ).toBe(true)
+  })
+
   it("starts a card as a placeholder of its estimated height, except the one holding the initial tab stop", () => {
     const { container } = mount()
 
@@ -189,6 +255,59 @@ describe("LazyCard", () => {
     // One list row on top of the card chrome; see `estimateCardHeight`.
     expect(placeholder?.style.minHeight).toBe("96px")
   })
+
+  it.each([null, "wheel", "dragover", "keydown"])(
+    "keeps keyboard focus visible after wrapped rows reflow, unless interrupted by %s",
+    (interrupt) => {
+      let frame: FrameRequestCallback | undefined
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        (callback: FrameRequestCallback) => {
+          frame = callback
+          return 1
+        }
+      )
+      const folder: BookmarkNode = { id: "focus", title: "Focus", children: [] }
+      const view = render(
+        <LazyCardsContext value={true}>
+          <LazyCard
+            folder={folder}
+            display={{ nestedFolders: true, collapsedFolders: {} }}
+            estimatedHeight={100}
+          >
+            <div data-compact="true">
+              <button>Focused bookmark</button>
+            </div>
+          </LazyCard>
+        </LazyCardsContext>
+      )
+      const wrapper = view.container.firstElementChild!
+      const observer = StubIntersectionObserver.instances[0]
+      const reportNear = () =>
+        act(() =>
+          observer.report(
+            new Map([[wrapper, { isIntersecting: true, height: 100 }]])
+          )
+        )
+      reportNear()
+      const button = view.getByRole("button")
+      button.focus()
+      vi.spyOn(button, "matches").mockImplementation(
+        (selector) => selector === ":focus-visible"
+      )
+      const rect = vi.spyOn(button, "getBoundingClientRect")
+      rect.mockReturnValue({ top: 100, bottom: 130 } as DOMRect)
+      const scroll = vi.fn()
+      button.scrollIntoView = scroll
+      reportNear()
+      expect(frame).toBeDefined()
+      // A sibling mounts and makes the row taller after the observer batch.
+      rect.mockReturnValue({ top: -100, bottom: -70 } as DOMRect)
+      if (interrupt) window.dispatchEvent(new Event(interrupt))
+      act(() => frame!(0))
+      expect(scroll).toHaveBeenCalledTimes(interrupt ? 0 : 1)
+    }
+  )
 
   it("mounts a card the viewport approaches and tears it down when it leaves, keeping its last height", () => {
     const { container } = mount()

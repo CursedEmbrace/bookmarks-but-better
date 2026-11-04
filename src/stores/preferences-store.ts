@@ -20,6 +20,7 @@ export type ColorTheme = ColorThemeId
  */
 export interface CardDisplay {
   nestedFolders: boolean
+  compactNestedFolders: boolean
   cardLayouts: CardLayouts
   collapsedFolders: CollapsedFolders
 }
@@ -35,6 +36,7 @@ interface PreferencesState {
   // Profile-wide: this browser profile's look and feel, independent of the
   // active source. Stored in the fixed profile namespace.
   nestedFolders: boolean
+  compactNestedFolders: boolean
   colorTheme: ColorTheme
   maxColumns: number
   containerMode: "fluid" | "contained"
@@ -71,6 +73,7 @@ interface PreferencesState {
   setCardLayout(folderId: string, layout: CardLayout): void
   setFolderCollapsed(folderId: string, collapsed: boolean): void
   setNestedFolders(value: boolean): void
+  setCompactNestedFolders(value: boolean): void
   setColorTheme(theme: ColorTheme): void
   setMaxColumns(value: number): void
   setContainerMode(mode: "fluid" | "contained"): void
@@ -88,6 +91,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   cardLayouts: {},
   collapsedFolders: {},
   nestedFolders: false,
+  compactNestedFolders: false,
   colorTheme: "default",
   maxColumns: 4,
   containerMode: "contained",
@@ -110,6 +114,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       cardLayouts,
       collapsedFolders,
       nestedFolders,
+      compactNestedFolders,
       colorTheme,
       maxColumns,
       containerMode,
@@ -121,6 +126,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       adapter.storage.get<CardLayouts>("cardLayouts"),
       adapter.storage.get<CollapsedFolders>("collapsedFolders"),
       readProfilePreference<boolean>("nestedFolders", adapter.storage),
+      readProfilePreference<boolean>("compactNestedFolders", adapter.storage),
       readProfilePreference<ColorTheme>("colorTheme", adapter.storage),
       readProfilePreference<number>("maxColumns", adapter.storage),
       readProfilePreference<"fluid" | "contained">(
@@ -191,6 +197,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
         nestedFolders ??
         (seedPrefDefaults?.nestedFolders as boolean | undefined) ??
         false,
+      compactNestedFolders: compactNestedFolders === true,
       colorTheme: resolvedColorTheme,
       maxColumns: Math.max(
         2,
@@ -254,6 +261,11 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     void profileStorage.set("nestedFolders", value)
   },
 
+  setCompactNestedFolders(value: boolean) {
+    set({ compactNestedFolders: value })
+    void profileStorage.set("compactNestedFolders", value)
+  },
+
   setColorTheme(theme: ColorTheme) {
     set({ colorTheme: theme })
     void profileStorage.set("colorTheme", theme)
@@ -300,6 +312,7 @@ export function useCardDisplay(): CardDisplay {
   return usePreferencesStore(
     useShallow((s) => ({
       nestedFolders: s.nestedFolders,
+      compactNestedFolders: s.compactNestedFolders,
       cardLayouts: s.cardLayouts,
       collapsedFolders: s.collapsedFolders,
     }))

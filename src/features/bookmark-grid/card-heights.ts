@@ -3,7 +3,8 @@ import type { BookmarkNode } from "@/browser"
 import type { CardDisplay } from "@/stores/preferences-store"
 
 /** What decides how tall a card is. */
-type CardHeightDisplay = Pick<CardDisplay, "cardLayouts" | "collapsedFolders">
+type CardHeightDisplay = Pick<CardDisplay, "cardLayouts" | "collapsedFolders"> &
+  Partial<Pick<CardDisplay, "compactNestedFolders">>
 
 /** Vertical gap between stacked cards, matching the column's `gap-4`. */
 const CARD_GAP = 16
@@ -137,7 +138,7 @@ export function useMeasuredCardHeights(
   columnCount: number,
   display: CardHeightDisplay
 ) {
-  const { cardLayouts, collapsedFolders } = display
+  const { cardLayouts, collapsedFolders, compactNestedFolders } = display
   const [heights, setHeights] =
     React.useState<ReadonlyMap<string, number>>(NO_HEIGHTS)
 
@@ -147,8 +148,8 @@ export function useMeasuredCardHeights(
   const observer = React.useRef<ResizeObserver | null>(null)
 
   const generation = React.useMemo(
-    () => ({ folders, columnCount, cardLayouts }),
-    [folders, columnCount, cardLayouts]
+    () => ({ folders, columnCount, cardLayouts, compactNestedFolders }),
+    [folders, columnCount, cardLayouts, compactNestedFolders]
   )
   const currentGeneration = React.useRef(generation)
   /** The generation a collapse toggle is holding still, if any. */

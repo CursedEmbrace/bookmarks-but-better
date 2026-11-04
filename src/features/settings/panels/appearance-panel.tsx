@@ -2,6 +2,7 @@ import { Radio as RadioPrimitive } from "@base-ui/react/radio"
 import { HugeiconsIcon } from "@hugeicons/react"
 import { Tick02Icon } from "@hugeicons/core-free-icons"
 import { RadioGroup } from "@/components/ui/radio-group"
+import { Switch } from "@/components/ui/switch"
 import {
   Select,
   SelectContent,
@@ -157,6 +158,12 @@ export function AppearancePanel() {
   const setMaxColumns = usePreferencesStore((s) => s.setMaxColumns)
   const containerMode = usePreferencesStore((s) => s.containerMode)
   const setContainerMode = usePreferencesStore((s) => s.setContainerMode)
+  const compactNestedFolders = usePreferencesStore(
+    (s) => s.compactNestedFolders
+  )
+  const setCompactNestedFolders = usePreferencesStore(
+    (s) => s.setCompactNestedFolders
+  )
   const { theme, setTheme } = useTheme()
 
   return (
@@ -207,6 +214,18 @@ export function AppearancePanel() {
 
       <SettingSection title="Layout">
         <SettingGroup>
+          <SettingRow
+            title="Compact nested folders"
+            description="When nested folders are shown, size their grid cards to fit and wrap them side by side. Turn off for full-width cards. List cards stay full width."
+            htmlFor="compact-nested-folders"
+            control={
+              <Switch
+                id="compact-nested-folders"
+                checked={compactNestedFolders}
+                onCheckedChange={setCompactNestedFolders}
+              />
+            }
+          />
           <SettingRow
             title="Max columns"
             description="The most columns the dashboard grid will use. Smaller screens use fewer."
