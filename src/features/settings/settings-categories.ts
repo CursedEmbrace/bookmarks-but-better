@@ -63,6 +63,7 @@ export const SETTING_HOMES: Record<string, SettingsCategoryId> = {
   themeMode: "appearance",
   maxColumns: "appearance",
   containerMode: "appearance",
+  compactNestedFolders: "appearance",
   rootFolderId: "sources",
   nestedFolders: "sources",
   // Data & Migration

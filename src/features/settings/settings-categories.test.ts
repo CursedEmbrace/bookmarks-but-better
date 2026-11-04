@@ -41,6 +41,7 @@ describe("settings categorization", () => {
     expect(homes.has("themeMode")).toBe(true)
     expect(homes.has("maxColumns")).toBe(true)
     expect(homes.has("containerMode")).toBe(true)
+    expect(SETTING_HOMES.compactNestedFolders).toBe("appearance")
     // Bookmarks.
     expect(homes.has("rootFolderId")).toBe(true)
     expect(homes.has("nestedFolders")).toBe(true)
