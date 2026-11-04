@@ -19,7 +19,9 @@ test("mutations persist across reloads, and Reset Scenario restores the seed", a
 
   const trigger = page.getByRole("button", { name: "Bookmark source" })
   await switchSource(page, "archive")
-  await expect(page.getByText("State of CSS 2024")).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "State of CSS 2024", exact: true })
+  ).toBeVisible()
 
   // A real mutation through the real create flow.
   await page.getByRole("button", { name: "Folder actions" }).first().click()
@@ -70,7 +72,9 @@ test("mutations persist across reloads, and Reset Scenario restores the seed", a
 
   // The reset Vault is its seed again, too.
   await switchSource(page, "archive")
-  await expect(page.getByText("State of CSS 2024")).toBeVisible()
+  await expect(
+    page.getByRole("link", { name: "State of CSS 2024", exact: true })
+  ).toBeVisible()
   await expect(page.getByText("Persisted Work")).toHaveCount(0)
 })
 
