@@ -109,6 +109,8 @@ interface BookmarkState {
   rootFolderId: string | null
   isLoading: boolean
   adapter: BrowserAdapter | null
+  /** Ownership supplied by the Source Session transition, retained after init. */
+  isCurrentSession: (() => boolean) | null
   status: BookmarkStoreStatus
   loadError: string | null
   mutationError: string | null
@@ -171,11 +173,25 @@ function findNode(nodes: BookmarkNode[], id: string): BookmarkNode | null {
   return null
 }
 
+/** Capture ownership, not just the adapter: A → B → A is a new session. */
+function captureSession(): () => boolean {
+  const { adapter, isCurrentSession } = useBookmarkStore.getState()
+  return () => {
+    const current = useBookmarkStore.getState()
+    return (
+      current.adapter === adapter &&
+      current.isCurrentSession === isCurrentSession &&
+      (isCurrentSession?.() ?? true)
+    )
+  }
+}
+
 export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   tree: [],
   rootFolderId: null,
   isLoading: true,
   adapter: null,
+  isCurrentSession: null,
   status: "loading",
   loadError: null,
   mutationError: null,
@@ -187,8 +203,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     // init learns it must not apply its results: a stale tree landing after
     // a newer session's would quietly revert the dashboard to the previous
     // source's bookmarks.
-    const isCurrent = options.isCurrent ?? (() => true)
-    if (!isCurrent()) {
+    if (options.isCurrent && !options.isCurrent()) {
       // Superseded before it began: nothing was subscribed, but the adapter
       // this dead transition created must still not leak.
       return () => adapter.bookmarks.dispose?.()
@@ -196,24 +211,32 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
 
     useCustomIconStore.getState().activate(options.iconSource ?? null)
     const readStartedAt = Date.now()
+    let disposed = false
 
     set({
       adapter,
+      // Keep the transition's generation check alive for retries and writes.
+      // This closure also distinguishes direct init calls using one adapter.
+      isCurrentSession: () => !disposed && (options.isCurrent?.() ?? true),
       isLoading: true,
       status: "loading",
       loadError: null,
+      mutationError: null,
       // The previous source's tree must not stay on screen behind the
       // loading state: a switch is a session transition, not an overlay.
       tree: [],
       rootFolderId: null,
       rootFolder: null,
     })
+    const isCurrent = captureSession()
 
     // Subscriptions belong to the session, not to the load succeeding: a
     // failed load must not leave the session deaf to the adapter's events
     // (retry() only reloads — without these, a recovered session never
     // refreshes on changes) or leak the adapter's stream on teardown.
-    const debouncedRefresh = debounce(() => get().refresh(), 100)
+    const debouncedRefresh = debounce(() => {
+      if (isCurrent()) void get().refresh()
+    }, 100)
 
     const unsubscribers = [
       adapter.bookmarks.onChanged(debouncedRefresh),
@@ -223,6 +246,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     ]
 
     const cleanup = () => {
+      disposed = true
       for (const unsub of unsubscribers) {
         unsub()
       }
@@ -276,6 +300,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
       rootFolder: null,
       isLoading: true,
       adapter: null,
+      isCurrentSession: null,
       status: "loading",
       loadError: null,
       mutationError: null,
@@ -292,12 +317,13 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   async refresh() {
     const { adapter } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
 
     const iconSource = useCustomIconStore.getState().source
     const readStartedAt = Date.now()
     try {
       const tree = await adapter.bookmarks.getTree()
-      if (get().adapter !== adapter) return
+      if (!isCurrent()) return
       const { rootFolderId } = get()
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       set({ tree, rootFolder, status: "ready", loadError: null })
@@ -306,7 +332,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
           .getState()
           .reconcile(iconSource, tree, readStartedAt)
     } catch (error) {
-      if (get().adapter !== adapter) return
+      if (!isCurrent()) return
       set({ status: "unavailable", loadError: toErrorMessage(error) })
     }
   },
@@ -314,17 +340,18 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   async retry() {
     const { adapter, rootFolderId } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
     set({ status: "loading", loadError: null })
     const iconSource = useCustomIconStore.getState().source
     const readStartedAt = Date.now()
     try {
       const tree = await loadTree(adapter)
-      if (get().adapter !== adapter) return
+      if (!isCurrent()) return
       if (iconSource)
         await useCustomIconStore
           .getState()
           .reconcile(iconSource, tree, readStartedAt)
-      if (get().adapter !== adapter) return
+      if (!isCurrent()) return
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       // `isLoading` too: a failed load leaves it true (init only clears it
       // on success), so a retry that succeeds must clear it as well or the
@@ -337,6 +364,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
         isLoading: false,
       })
     } catch (error) {
+      if (!isCurrent()) return
       set({ status: "unavailable", loadError: toErrorMessage(error) })
     }
   },
@@ -348,50 +376,55 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   async createBookmark(parentId: string, title: string, url: string) {
     const { adapter } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.create({ parentId, title, url })
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
     }
   },
 
   async updateBookmark(id: string, changes: { title?: string; url?: string }) {
     const { adapter } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.update(id, changes)
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
     }
   },
 
   async deleteBookmark(id: string) {
     const { adapter } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.remove(id)
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
     }
   },
 
   async deleteFolder(id: string) {
     const { adapter } = get()
     if (!adapter) return
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.removeTree(id)
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
     }
   },
 
   async createSeparator(parentId: string, afterId?: string) {
     const { adapter } = get()
     if (!adapter) return null
+    const isCurrent = captureSession()
     try {
       if (
         !adapter.capabilities.separators ||
@@ -402,7 +435,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
       // Resolve against the source, including folders and separators, rather
       // than a dashboard's filtered child list or an old menu's index.
       const [parent] = await adapter.bookmarks.getSubTree(parentId)
-      if (get().adapter !== adapter) return null
+      if (!isCurrent()) return null
       if (
         !parent ||
         parent.type === "separator" ||
@@ -423,13 +456,12 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
         parentId,
         position === undefined ? undefined : position + 1
       )
-      if (get().adapter !== adapter) return null
+      if (!isCurrent()) return null
       set({ mutationError: null })
       await get().refresh()
-      return get().adapter === adapter ? created : null
+      return isCurrent() ? created : null
     } catch (error) {
-      if (get().adapter === adapter)
-        set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
       return null
     }
   },
@@ -437,17 +469,18 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   async createFolder(parentId: string, title: string) {
     const { adapter } = get()
     if (!adapter) return null
+    const isCurrent = captureSession()
     try {
       const created = await adapter.bookmarks.create({ parentId, title })
-      if (get().adapter !== adapter) return null
+      if (!isCurrent()) return null
       set({ mutationError: null })
       // Update the dashboard before resolving, without waiting for a browser
       // event or the daemon change stream's debounced refresh.
       await get().refresh()
-      if (get().adapter !== adapter) return null
+      if (!isCurrent()) return null
       return created
     } catch (error) {
-      if (get().adapter !== adapter) return null
+      if (!isCurrent()) return null
       set({ mutationError: toErrorMessage(error) })
       return null
     }
@@ -459,12 +492,13 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   ) {
     const { adapter } = get()
     if (!adapter) return false
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.move(id, destination)
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
       return true
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
       return false
     }
   },
@@ -472,12 +506,13 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
   async setChildOrder(folderId: string, orderedChildIds: string[]) {
     const { adapter } = get()
     if (!adapter?.bookmarks.setChildOrder) return false
+    const isCurrent = captureSession()
     try {
       await adapter.bookmarks.setChildOrder(folderId, orderedChildIds)
-      set({ mutationError: null })
+      if (isCurrent()) set({ mutationError: null })
       return true
     } catch (error) {
-      set({ mutationError: toErrorMessage(error) })
+      if (isCurrent()) set({ mutationError: toErrorMessage(error) })
       return false
     }
   },
