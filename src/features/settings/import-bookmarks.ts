@@ -144,75 +144,51 @@ export async function executeImportPlan(
   }
 
   async function write(level: ImportPlanNode[], target: string): Promise<void> {
-    // A separator gives sibling order meaning. Await each append in these
-    // folders: concurrent creates may be processed in any order by Firefox.
-    if (level.some((node) => node.kind === "separator")) {
-      for (const node of level) {
-        if (node.kind === "bookmark") {
-          await writeBookmark(node, target)
-        } else if (node.kind === "separator") {
-          try {
-            if (!bookmarks.createSeparator)
-              throw new Error(
-                "This source does not support bookmark separators"
-              )
-            await limit(() => bookmarks.createSeparator!(target))
-            result.separators = (result.separators ?? 0) + 1
-          } catch (error) {
-            record(error, 1)
-          }
-        } else {
-          let id = node.existingId
-          if (id) result.merged += 1
-          else {
-            try {
-              id = (
-                await limit(() =>
-                  bookmarks.create({ parentId: target, title: node.title })
-                )
-              ).id
-              result.folders += 1
-            } catch (error) {
-              record(error, 1 + countNodes(node.children))
-              continue
-            }
-          }
-          await write(node.children, id)
-        }
-      }
-      return
-    }
-    const folders = level.filter((n) => n.kind === "folder")
-    const leaves = level.filter((n) => n.kind === "bookmark")
-
-    await Promise.all(leaves.map((node) => writeBookmark(node, target)))
-
-    // Folders are resolved level by level so their children have a real parent
-    // id to attach to; `null` marks the ones whose subtree has to be abandoned.
-    const targets = await Promise.all(
-      folders.map(async (node) => {
-        if (node.existingId) {
-          result.merged += 1
-          return node.existingId
-        }
+    // create() appends, but adapters need not complete concurrent requests in
+    // submission order. Await every sibling, regardless of its kind. Existing
+    // folders and replaced bookmarks stay in place; only new nodes append.
+    const childrenByTarget = new Map<string, ImportPlanNode[]>()
+    for (const node of level) {
+      if (node.kind === "bookmark") {
+        await writeBookmark(node, target)
+      } else if (node.kind === "separator") {
         try {
-          const created = await limit(() =>
-            bookmarks.create({ parentId: target, title: node.title })
-          )
-          result.folders += 1
-          return created.id
+          if (!bookmarks.createSeparator)
+            throw new Error("This source does not support bookmark separators")
+          await limit(() => bookmarks.createSeparator!(target))
+          result.separators = (result.separators ?? 0) + 1
         } catch (error) {
-          record(error, 1 + countNodes(node.children))
-          return null
+          record(error, 1)
         }
-      })
-    )
+      } else {
+        let id = node.existingId
+        if (id) result.merged += 1
+        else {
+          try {
+            id = (
+              await limit(() =>
+                bookmarks.create({ parentId: target, title: node.title })
+              )
+            ).id
+            result.folders += 1
+          } catch (error) {
+            record(error, 1 + countNodes(node.children))
+            continue
+          }
+        }
+        // Repeated incoming names may merge into the same existing folder.
+        // Combine their children in source order before starting that folder,
+        // so two branches cannot concurrently append to the same destination.
+        const children = childrenByTarget.get(id) ?? []
+        for (const child of node.children) children.push(child)
+        childrenByTarget.set(id, children)
+      }
+    }
 
+    // Distinct destination folders can still progress concurrently, sharing
+    // the import-wide request limit. No slot is held while awaiting children.
     await Promise.all(
-      folders.map((node, i) => {
-        const id = targets[i]
-        return id === null ? undefined : write(node.children, id)
-      })
+      [...childrenByTarget].map(([id, children]) => write(children, id))
     )
   }
 
