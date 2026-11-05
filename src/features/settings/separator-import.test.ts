@@ -34,29 +34,25 @@ describe("separator import/export", () => {
     expect(parsed[0].children).toBeUndefined()
   })
 
-  it("awaits ordered appends around separators, including folders", async () => {
-    const writes: string[] = []
+  it("awaits ordered appends around separators in each destination, including folders", async () => {
+    const writes: Record<string, string[]> = {}
     const adapter = {
-      create: vi.fn(async ({ title }: { title: string }) => {
-        await Promise.resolve()
-        writes.push(title)
-        return { id: title }
-      }),
+      create: vi.fn(
+        async ({ title, parentId }: { title: string; parentId: string }) => {
+          await Promise.resolve()
+          ;(writes[parentId] ??= []).push(title)
+          return { id: title }
+        }
+      ),
       createSeparator: vi.fn(async (parentId: string) => {
-        writes.push(`separator:${parentId}`)
+        ;(writes[parentId] ??= []).push("separator")
         return separator
       }),
     } as unknown as BookmarkAdapter
     const plan = planImport([], "target", nodes)
     const result = await executeImportPlan(adapter, plan.nodes, "target")
-    expect(writes).toEqual([
-      "separator:target",
-      "A",
-      "Nested",
-      "separator:Nested",
-      "separator:Nested",
-      "separator:target",
-    ])
+    expect(writes.target).toEqual(["separator", "A", "Nested", "separator"])
+    expect(writes.Nested).toEqual(["separator", "separator"])
     expect(result).toMatchObject({
       separators: 4,
       bookmarks: 1,
