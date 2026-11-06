@@ -114,8 +114,8 @@ for (const depth of [6, 8, 10, 11, 12, 20]) {
       body: JSON.stringify(measurements, null, 2),
       contentType: "application/json",
     })
-    // Noncompact desktop behavior stays unchanged; narrow/deep noncompact
-    // clipping predates this option and is deliberately outside this fix.
+    // Wide noncompact desktop cards retain their established full-width inset.
+    // Narrow noncompact cases are covered in deep-noncompact-folders.spec.ts.
     if (depth <= 12) {
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.evaluate(async () => {
