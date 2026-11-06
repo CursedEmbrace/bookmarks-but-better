@@ -376,15 +376,10 @@ export const BookmarkCard = React.memo(function BookmarkCard({
         />
       </div>
 
-      {/* The body animates its height and is unmounted once closed. The
-          spacing lives inside it, so nothing jumps when it goes; the negative
-          margin gives focus rings room past the clipping edge. */}
-      <CollapsibleContent
-        className={cn(
-          "-mx-1.5 -mb-1.5 h-(--collapsible-panel-height) overflow-hidden px-1.5 pb-1.5 transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none",
-          display.compactNestedFolders && "-mx-4 px-4"
-        )}
-      >
+      {/* Reserve the full card gutter inside the height-animation clip so
+          narrow nested groups can reclaim padding without hiding controls.
+          The balanced margin/padding keeps the body's normal width unchanged. */}
+      <CollapsibleContent className="-mx-4 -mb-1.5 h-(--collapsible-panel-height) overflow-hidden px-4 pb-1.5 transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none">
         <div className="flex flex-col gap-3 pt-3">
           {/* Bookmarks */}
           {bookmarks.length > 0 && (
@@ -426,18 +421,15 @@ export const BookmarkCard = React.memo(function BookmarkCard({
           {nestedFolders && subfolders.length > 0 && (
             <div
               // Stop spending horizontal space on indentation once the body
-              // is narrow. Children can reclaim only this card's padding,
+              // is narrow, independently of compact presentation. Children
+              // can reclaim only this card's padding,
               // never escape its bounds. Header padding and shallow cards
               // stay unchanged; the panel above reserves the same gutter so
               // its height-animation clip cannot hide the reclaimed space.
-              style={
-                display.compactNestedFolders
-                  ? {
-                      marginInline:
-                        "clamp(calc(var(--spacing) * -4), calc((100% - 12rem) / 2), 0px)",
-                    }
-                  : undefined
-              }
+              style={{
+                marginInline:
+                  "clamp(calc(var(--spacing) * -4), calc((100% - 12rem) / 2), 0px)",
+              }}
               className={cn(
                 "flex gap-3",
                 display.compactNestedFolders

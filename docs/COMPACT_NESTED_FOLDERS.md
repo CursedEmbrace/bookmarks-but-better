@@ -24,12 +24,13 @@ source-scoped.
 - List cards retain their full width. Disabling compact layout restores the
   original stacked presentation. Disabling nested folders retains the existing
   flat dashboard behaviour.
-- With compact presentation enabled, narrow nested groups progressively reclaim
-  their parent's horizontal padding once the body is narrower than 12rem. They
+- In either presentation, narrow nested groups progressively reclaim their
+  parent's horizontal padding once the body is narrower than 12rem. They
   reclaim at most that padding, so further nesting stops consuming width without
   escaping the owning card. Headers retain their normal padding. The collapsible
   panel reserves the same horizontal gutter inside its animation clip. This
-  also protects mixed Grid/List descendants while the compact option is on.
+  also protects mixed Grid/List descendants. Noncompact children remain stacked
+  at full width; only compact Grid children use intrinsic sizing and wrapping.
 - Contained/Fluid width, column counts, breakpoints and distribution rules are
   unchanged. The existing height measurement cache accepts new measurements
   when the compact preference changes.
@@ -65,9 +66,30 @@ folder or opens a bookmark, and Alt+Up/Down reorder within a folder.
 
 The deep-nesting regression previously reduced the twelfth nested compact card
 to 64px at a 1440px viewport. The bounded indentation keeps it at 160px with the
-default theme, while the same noncompact card remains 312px. Noncompact mode's
-pre-existing clipping at extreme depth in narrow dashboard columns is outside
-this correction; its layout rules are unchanged.
+default theme, while the same noncompact card remains 312px in that two-column
+fixture.
+
+## Noncompact deep-nesting safeguard
+
+Noncompact nesting now shares the bounded indentation and full panel gutter.
+Previously, each level lost another 32px to padding even after its heading and
+actions no longer fit. In a 768px viewport with Max columns six, a depth-12 card
+could shrink to 32px and its menu was clipped by ancestor panels.
+
+The nested group can reclaim at most its parent's padding, without imposing a
+minimum width or escaping that parent. At the default font size, sufficiently
+wide noncompact cards stop shrinking at 192px; narrower parents remain the limit.
+Shallow cards with enough space keep their normal insets. Headers keep their
+padding, titles still truncate, and noncompact siblings still stack. Compact
+intrinsic sizing, the 26rem cap, wrapping, and the opt-in preference are unchanged.
+
+`tests/ui/deep-noncompact-folders.spec.ts` checks depths 1/2/6/8/10/12/20,
+including the 768 × 900 / Max columns six reproduction. It measures clipping
+intersections and title/action bounds, uses direct pointer coordinates, opens
+menus by pointer and keyboard, checks Escape focus restoration and collapse,
+and covers Grid/List, themes, text scaling, deep mutations, separators, icons,
+drag cancellation and lazy content. The shared fixture and geometry helpers live
+in `tests/ui/deep-folder-helpers.ts`.
 
 ## Validation and manual Firefox review
 
