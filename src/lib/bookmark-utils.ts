@@ -4,8 +4,9 @@ export function isSeparator(node: BookmarkNode): boolean {
   return node.type === "separator"
 }
 
+/** Matches every other check in the app: a folder has no `url` at all. */
 export function isFolderNode(node: BookmarkNode): boolean {
-  return !isSeparator(node) && node.url == null
+  return !isSeparator(node) && node.url === undefined
 }
 
 /** Entries rendered inside a folder, in their persisted order. */

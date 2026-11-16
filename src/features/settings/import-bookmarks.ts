@@ -107,10 +107,11 @@ export async function executeImportPlan(
 
   const limit = createLimiter(concurrency)
 
+  /** Resolves the id of a newly created bookmark, or `null` for anything else. */
   async function writeBookmark(
     node: Extract<ImportPlanNode, { kind: "bookmark" }>,
     target: string
-  ): Promise<void> {
+  ): Promise<string | null> {
     const choice = node.conflict
       ? (resolutions[node.conflict.key] ?? "skip")
       : "keep-both"
@@ -118,7 +119,7 @@ export async function executeImportPlan(
     try {
       if (node.conflict && choice === "skip") {
         result.skipped += 1
-        return
+        return null
       }
 
       if (node.conflict && choice === "replace") {
@@ -127,10 +128,10 @@ export async function executeImportPlan(
         const existingId = node.conflict.existingId
         await limit(() => bookmarks.update(existingId, { title: node.title }))
         result.replaced += 1
-        return
+        return null
       }
 
-      await limit(() =>
+      const created = await limit(() =>
         bookmarks.create({
           parentId: target,
           title: node.title,
@@ -138,52 +139,107 @@ export async function executeImportPlan(
         })
       )
       result.bookmarks += 1
+      return created.id
     } catch (error) {
       record(error, 1)
+      return null
+    }
+  }
+
+  async function writeSeparator(target: string): Promise<string | null> {
+    try {
+      if (!bookmarks.createSeparator)
+        throw new Error("This source does not support bookmark separators")
+      const created = await limit(() => bookmarks.createSeparator!(target))
+      result.separators = (result.separators ?? 0) + 1
+      return created.id
+    } catch (error) {
+      record(error, 1)
+      return null
+    }
+  }
+
+  /** The folder its children go into, and whether it was newly created. */
+  async function writeFolder(
+    node: Extract<ImportPlanNode, { kind: "folder" }>,
+    target: string
+  ): Promise<{ id: string; created: boolean } | null> {
+    if (node.existingId) {
+      result.merged += 1
+      return { id: node.existingId, created: false }
+    }
+    try {
+      const created = await limit(() =>
+        bookmarks.create({ parentId: target, title: node.title })
+      )
+      result.folders += 1
+      return { id: created.id, created: true }
+    } catch (error) {
+      record(error, 1 + countNodes(node.children))
+      return null
+    }
+  }
+
+  /**
+   * Puts this level's new nodes after the folder's existing children, in
+   * source order. Existing folders and replaced bookmarks keep their place.
+   */
+  async function restoreOrder(target: string, createdIds: string[]) {
+    if (createdIds.length < 2 || !bookmarks.setChildOrder) return
+    try {
+      const [folder] = await limit(() => bookmarks.getSubTree(target))
+      const created = new Set(createdIds)
+      const existing = (folder?.children ?? [])
+        .map((child) => child.id)
+        .filter((id) => !created.has(id))
+      await limit(() =>
+        bookmarks.setChildOrder!(target, [...existing, ...createdIds])
+      )
+    } catch (error) {
+      // Every node was written; only their order could not be fixed.
+      result.firstError ??= messageOf(error)
     }
   }
 
   async function write(level: ImportPlanNode[], target: string): Promise<void> {
-    // create() appends, but adapters need not complete concurrent requests in
-    // submission order. Await every sibling, regardless of its kind. Existing
-    // folders and replaced bookmarks stay in place; only new nodes append.
-    const childrenByTarget = new Map<string, ImportPlanNode[]>()
-    for (const node of level) {
-      if (node.kind === "bookmark") {
-        await writeBookmark(node, target)
-      } else if (node.kind === "separator") {
-        try {
-          if (!bookmarks.createSeparator)
-            throw new Error("This source does not support bookmark separators")
-          await limit(() => bookmarks.createSeparator!(target))
-          result.separators = (result.separators ?? 0) + 1
-        } catch (error) {
-          record(error, 1)
-        }
-      } else {
-        let id = node.existingId
-        if (id) result.merged += 1
-        else {
-          try {
-            id = (
-              await limit(() =>
-                bookmarks.create({ parentId: target, title: node.title })
-              )
-            ).id
-            result.folders += 1
-          } catch (error) {
-            record(error, 1 + countNodes(node.children))
-            continue
-          }
-        }
-        // Repeated incoming names may merge into the same existing folder.
-        // Combine their children in source order before starting that folder,
-        // so two branches cannot concurrently append to the same destination.
-        const children = childrenByTarget.get(id) ?? []
-        for (const child of node.children) children.push(child)
-        childrenByTarget.set(id, children)
-      }
+    const writeNode = (node: ImportPlanNode) =>
+      node.kind === "bookmark"
+        ? writeBookmark(node, target).then((id) => ({ id, folder: null }))
+        : node.kind === "separator"
+          ? writeSeparator(target).then((id) => ({ id, folder: null }))
+          : writeFolder(node, target).then((folder) => ({
+              id: folder?.created ? folder.id : null,
+              folder,
+            }))
+
+    // create() appends, but adapters need not complete concurrent requests
+    // in submission order. A source that can set a whole child order (the
+    // daemon, where every request is a network round trip) writes siblings
+    // concurrently and fixes their order once afterwards. Browser sources
+    // answer locally, so they simply await each sibling in turn.
+    let written: Awaited<ReturnType<typeof writeNode>>[]
+    if (bookmarks.setChildOrder) {
+      written = await Promise.all(level.map(writeNode))
+      await restoreOrder(
+        target,
+        written.flatMap(({ id }) => (id === null ? [] : [id]))
+      )
+    } else {
+      written = []
+      for (const node of level) written.push(await writeNode(node))
     }
+
+    // Repeated incoming names may merge into the same existing folder.
+    // Combine their children in source order before starting that folder,
+    // so two branches cannot concurrently append to the same destination.
+    const childrenByTarget = new Map<string, ImportPlanNode[]>()
+    level.forEach((node, index) => {
+      const folder = written[index].folder
+      if (node.kind !== "folder" || !folder) return
+      const children = childrenByTarget.get(folder.id) ?? []
+      for (const child of node.children) children.push(child)
+      childrenByTarget.set(folder.id, children)
+    })
 
     // Distinct destination folders can still progress concurrently, sharing
     // the import-wide request limit. No slot is held while awaiting children.

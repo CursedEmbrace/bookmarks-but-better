@@ -5,7 +5,7 @@ import type {
   BookmarkNode,
   BrowserAdapter,
 } from "@/browser"
-import { debounce } from "@/lib/bookmark-utils"
+import { debounce, isFolderNode } from "@/lib/bookmark-utils"
 
 export type BookmarkStoreStatus = "loading" | "ready" | "unavailable"
 
@@ -319,18 +319,14 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
     if (!adapter) return
     const isCurrent = captureSession()
 
-    const iconSource = useCustomIconStore.getState().source
-    const readStartedAt = Date.now()
+    // Icon cleanup is a session-start job (init and retry), not a per-edit
+    // one: every change event lands here, and cleanup scans every icon.
     try {
       const tree = await adapter.bookmarks.getTree()
       if (!isCurrent()) return
       const { rootFolderId } = get()
       const rootFolder = rootFolderId ? findNode(tree, rootFolderId) : null
       set({ tree, rootFolder, status: "ready", loadError: null })
-      if (iconSource)
-        await useCustomIconStore
-          .getState()
-          .reconcile(iconSource, tree, readStartedAt)
     } catch (error) {
       if (!isCurrent()) return
       set({ status: "unavailable", loadError: toErrorMessage(error) })
@@ -438,8 +434,7 @@ export const useBookmarkStore = create<BookmarkState>((set, get) => ({
       if (!isCurrent()) return null
       if (
         !parent ||
-        parent.type === "separator" ||
-        parent.url !== undefined ||
+        !isFolderNode(parent) ||
         parent.readOnly ||
         parent.orderReadOnly
       ) {

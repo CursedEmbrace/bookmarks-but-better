@@ -47,10 +47,14 @@ two bookmarks with identical URLs, in list/grid views and nested folders.
 - Move, reorder, title and URL changes preserve the assignment while the source's
   bookmark ID remains stable. Read-only/non-bookmark nodes have no picker.
 - Successful full-source loads reconcile deleted bookmark IDs, including deleted
-  folders' descendants. Cleanup happens at dashboard startup and on bookmark
-  changes, and never on a failed/offline load or against a dashboard subtree.
-  Writes newer than the tree read are protected from stale cleanup snapshots.
-  Deletions made while the dashboard is closed are collected on its next load.
+  folders' descendants. Cleanup happens when a source loads (dashboard startup,
+  source switch, retry), not on every bookmark change, and never on a
+  failed/offline load or against a dashboard subtree. A missing bookmark's icon
+  is first marked, then deleted only once it has stayed missing for
+  `ORPHAN_GRACE_MS` (7 days, provisional); a bookmark that reappears clears the
+  mark. One partial read (a vault file caught mid-save) therefore cannot erase
+  icons. Writes newer than the tree read are protected from stale cleanup
+  snapshots.
 - IndexedDB transaction completion determines success. Failed/aborted saves keep
   previous icons; bookmark and preference databases are untouched. Source Session
   transitions clear in-memory assignments and expire pending work. A local

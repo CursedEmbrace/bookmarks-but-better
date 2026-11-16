@@ -711,7 +711,7 @@ for (const becomesReadOnly of [false, true]) {
   })
 }
 
-test("rename, native drag and deletion preserve identity and collect orphan images", async ({
+test("rename, native drag and deletion preserve identity and collect orphan images after a grace period", async ({
   page,
 }) => {
   const ids = await setup(page)
@@ -758,14 +758,29 @@ test("rename, native drag and deletion preserve identity and collect orphan imag
     await store.adapter.bookmarks.removeTree(nested)
     await store.refresh()
   }, ids)
+  const stored = () =>
+    page.evaluate(async () => {
+      const path = "/src/features/custom-icons/storage.ts"
+      return (await import(path)).customIconRepository.list("browser")
+    })
+  // A change event never deletes icons; it no longer rescans them at all.
+  expect(await stored()).toHaveLength(1)
+  // A fresh load marks the orphan instead of deleting it straight away...
+  await page.evaluate(async () => {
+    const path = "/src/stores/bookmark-store.ts"
+    await (await import(path)).useBookmarkStore.getState().retry()
+  })
   await expect
-    .poll(() =>
-      page.evaluate(async () => {
-        const path = "/src/features/custom-icons/storage.ts"
-        return (await import(path)).customIconRepository.list("browser")
-      })
-    )
-    .toEqual([])
+    .poll(async () => (await stored())[0]?.missingSince)
+    .toEqual(expect.any(Number))
+  // ...and cleanup collects it once it has been missing for the grace period.
+  await page.evaluate(async () => {
+    const path = "/src/features/custom-icons/storage.ts"
+    const { customIconRepository, ORPHAN_GRACE_MS } = await import(path)
+    const now = Date.now() + ORPHAN_GRACE_MS
+    await customIconRepository.prune("browser", new Set(), now, now)
+  })
+  expect(await stored()).toEqual([])
 })
 
 test("open dashboard tabs share committed assignments and resets", async ({

@@ -16,7 +16,28 @@ function velocity(y: number, top: number, bottom: number): number {
   return (y < (top + bottom) / 2 ? -1 : 1) * 600 * (1 - distance / band) ** 2
 }
 
-function scrollIntent(root: HTMLElement, pointer: Pointer) {
+/**
+ * Each element's computed `overflow-y` for the length of one drag. Reading
+ * computed style is a layout-dependent query, and the hit test walks every
+ * ancestor twice a frame plus once per dragover; an element's overflow does
+ * not change mid-drag, so asking once is enough.
+ */
+type OverflowCache = WeakMap<Element, string>
+
+function overflowY(cache: OverflowCache, node: Element): string {
+  let value = cache.get(node)
+  if (value === undefined) {
+    value = getComputedStyle(node).overflowY
+    cache.set(node, value)
+  }
+  return value
+}
+
+function scrollIntent(
+  root: HTMLElement,
+  pointer: Pointer,
+  cache: OverflowCache
+) {
   const hit = document.elementFromPoint(pointer.clientX, pointer.clientY)
   if (!hit || !root.isConnected) return null
 
@@ -24,8 +45,7 @@ function scrollIntent(root: HTMLElement, pointer: Pointer) {
   // empty space and independently scrolling descendants must work too.
   for (let node: Element | null = hit; node; node = node.parentElement) {
     if (!(node instanceof HTMLElement)) continue
-    const style = getComputedStyle(node)
-    if (!/^(auto|scroll)$/.test(style.overflowY)) continue
+    if (!/^(auto|scroll)$/.test(overflowY(cache, node))) continue
     // An unrelated panel inside the dashboard must not scroll its background.
     if (!root.contains(node) && !node.contains(root)) return null
     if (node.scrollHeight <= node.clientHeight) continue
@@ -43,9 +63,7 @@ function scrollIntent(root: HTMLElement, pointer: Pointer) {
       parent;
       parent = parent.parentElement
     ) {
-      if (
-        !/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(parent).overflowY)
-      )
+      if (!/^(auto|scroll|hidden|clip)$/.test(overflowY(cache, parent)))
         continue
       const bounds = parent.getBoundingClientRect()
       top = Math.max(top, bounds.top + parent.clientTop)
@@ -77,6 +95,7 @@ export function autoScrollDashboard(root: HTMLDivElement): () => void {
   let refreshing = false
   let lastElement: HTMLElement | null = null
   let remainder = 0
+  let overflow: OverflowCache = new WeakMap()
 
   function pause() {
     if (frame !== null) cancelAnimationFrame(frame)
@@ -89,6 +108,7 @@ export function autoScrollDashboard(root: HTMLDivElement): () => void {
 
   function finish() {
     pause()
+    overflow = new WeakMap()
     unbind?.()
     unbind = null
   }
@@ -96,7 +116,7 @@ export function autoScrollDashboard(root: HTMLDivElement): () => void {
   function tick(time: number) {
     frame = null
     if (!pointer) return
-    const intent = scrollIntent(root, pointer)
+    const intent = scrollIntent(root, pointer, overflow)
     if (!intent) {
       lastTime = null
       return
@@ -135,7 +155,7 @@ export function autoScrollDashboard(root: HTMLDivElement): () => void {
         refreshing = false
       }
     }
-    if (pointer && scrollIntent(root, pointer))
+    if (pointer && scrollIntent(root, pointer, overflow))
       frame = requestAnimationFrame(tick)
     else lastTime = null
   }
@@ -150,7 +170,7 @@ export function autoScrollDashboard(root: HTMLDivElement): () => void {
       metaKey: input.metaKey,
       shiftKey: input.shiftKey,
     }
-    if (!scrollIntent(root, pointer)) {
+    if (!scrollIntent(root, pointer, overflow)) {
       pause()
       return
     }

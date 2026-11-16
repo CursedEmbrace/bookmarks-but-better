@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { IDBDatabase } from "fake-indexeddb"
 import { installFakeIndexedDB } from "@/browser/__tests__/fake-indexeddb"
-import { CustomIconRepository } from "./storage"
+import { ORPHAN_GRACE_MS, CustomIconRepository } from "./storage"
 import { createIconBackup, planIconRestore } from "./backup"
 
 const image = "data:image/png;base64,YQ=="
@@ -94,11 +94,36 @@ describe("custom icon storage", () => {
       ])
     )
     await repository.patch("vault", new Map([["deleted", image]]))
-    await repository.prune("browser", new Set(["keep"]), Date.now() + 1)
+    const now = Date.now() + 1
+    await repository.prune("browser", new Set(["keep"]), now, now)
+    // One read only marks the icon: it is kept for the grace period.
+    expect(
+      (await repository.list("browser")).map((record) => record.id)
+    ).toEqual(["deleted", "keep"])
+    await repository.prune(
+      "browser",
+      new Set(["keep"]),
+      now,
+      now + ORPHAN_GRACE_MS
+    )
     expect(
       (await repository.list("browser")).map((record) => record.id)
     ).toEqual(["keep"])
     expect(await repository.list("vault")).toHaveLength(1)
+  })
+  it("keeps an icon whose bookmark reappears before the grace period ends", async () => {
+    const repository = new CustomIconRepository()
+    await repository.patch("browser", new Map([["flaky", image]]))
+    const now = Date.now() + 1
+    await repository.prune("browser", new Set(), now, now)
+    const [marked] = await repository.list("browser")
+    expect(marked.missingSince).toBe(now)
+    await repository.prune("browser", new Set(["flaky"]), now, now + 1000)
+    const [cleared] = await repository.list("browser")
+    expect(cleared.missingSince).toBeUndefined()
+    // Missing again later starts a fresh grace period rather than resuming.
+    await repository.prune("browser", new Set(), now, now + ORPHAN_GRACE_MS)
+    expect(await repository.list("browser")).toHaveLength(1)
   })
   it("does not prune icons written after a tree read began", async () => {
     const repository = new CustomIconRepository()

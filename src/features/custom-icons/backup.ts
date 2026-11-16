@@ -1,3 +1,4 @@
+import { isSeparator } from "@/lib/bookmark-utils"
 import type { BookmarkNode } from "@/browser"
 import type { IconRecord } from "./storage"
 import { canEditCustomIcon } from "./eligibility"
@@ -28,7 +29,7 @@ function bookmarkEntries(tree: BookmarkNode[]) {
   const result: { identity: BookmarkIdentity; node: BookmarkNode }[] = []
   function visit(nodes: BookmarkNode[], folderPath: string[]) {
     for (const node of nodes) {
-      if (node.type === "separator") continue
+      if (isSeparator(node)) continue
       if (node.url !== undefined)
         result.push({
           node,

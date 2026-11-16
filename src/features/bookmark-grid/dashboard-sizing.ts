@@ -1,4 +1,4 @@
-/** Root layout policy. Compact descendants keep their separate 26rem cap. */
+/** Root layout policy. Compact descendants keep their own cap (`COMPACT_MAX_REM`). */
 export const ROOT_COLUMN_MIN_REM = 17
 export const ROOT_COLUMN_MAX_REM = 34
 

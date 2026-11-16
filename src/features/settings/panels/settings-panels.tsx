@@ -155,6 +155,9 @@ export function DataMigrationPanel({
   const rootFolderId = useBookmarkStore((s) => s.rootFolderId)
   const adapter = useBookmarkStore((s) => s.adapter)
   const refresh = useBookmarkStore((s) => s.refresh)
+  const canImportSeparators =
+    (adapter?.capabilities.separators ?? false) &&
+    adapter?.bookmarks.createSeparator !== undefined
 
   const [pendingImport, setPendingImport] =
     React.useState<PendingImport | null>(null)
@@ -284,7 +287,9 @@ export function DataMigrationPanel({
       ? [{ id: "", title: subfolder, children: pendingImport.nodes }]
       : pendingImport.nodes
 
-    const plan = planImport(tree, importParentId, nodes)
+    const plan = planImport(tree, importParentId, nodes, {
+      separators: canImportSeparators,
+    })
 
     if (plan.conflicts.length > 0) {
       // Nothing has been written yet, so cancelling from here is free.
@@ -341,8 +346,12 @@ export function DataMigrationPanel({
                 {pendingImport.folders} folder
                 {pendingImport.folders === 1 ? "" : "s"}
                 {pendingImport.separators > 0 &&
+                  canImportSeparators &&
                   `, plus ${pendingImport.separators} separator${pendingImport.separators === 1 ? "" : "s"}`}
                 . Choose where to put them.
+                {pendingImport.separators > 0 &&
+                  !canImportSeparators &&
+                  ` This source has no separators, so ${pendingImport.separators === 1 ? "its separator" : `its ${pendingImport.separators} separators`} will be left out.`}
                 {pendingImport.skipped > 0 &&
                   ` ${pendingImport.skipped} row${pendingImport.skipped === 1 ? "" : "s"} had no valid URL and ${pendingImport.skipped === 1 ? "was" : "were"} skipped.`}
               </p>

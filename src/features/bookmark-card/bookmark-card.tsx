@@ -41,7 +41,11 @@ import { useCardDisplay, usePreferencesStore } from "@/stores/preferences-store"
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useUIStore } from "@/stores/ui-store"
 import type { BookmarkNode } from "@/browser"
-import { describeReadOnly } from "@/lib/bookmark-utils"
+import {
+  describeReadOnly,
+  isCardEntry,
+  isSeparator,
+} from "@/lib/bookmark-utils"
 import { compactFolderStyle } from "./compact-folder"
 import {
   Tooltip,
@@ -264,9 +268,7 @@ export const BookmarkCard = React.memo(function BookmarkCard({
   const children = folder.children ?? []
 
   // Separate direct bookmarks from subfolders
-  const bookmarks = children.filter(
-    (c) => c.url !== undefined || c.type === "separator"
-  )
+  const bookmarks = children.filter(isCardEntry)
   const subfolders = children.filter(
     (c) => c.url === undefined && c.children !== undefined
   )
@@ -393,7 +395,7 @@ export const BookmarkCard = React.memo(function BookmarkCard({
               )}
             >
               {bookmarks.map((bookmark, index) =>
-                bookmark.type === "separator" ? (
+                isSeparator(bookmark) ? (
                   <BookmarkSeparator
                     key={bookmark.id}
                     bookmark={bookmark}

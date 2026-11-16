@@ -75,7 +75,7 @@ describe("custom icon source sessions", () => {
     expect(useCustomIconStore.getState().error).toContain("unavailable")
     expect(customIconRepository.patch).not.toHaveBeenCalled()
   })
-  it("reconciles the full tree on startup and changes, preserving IDs after move/rename and ignoring failed loads", async () => {
+  it("reconciles the full tree on startup and retry, not on every change, preserving IDs after move/rename and ignoring failed loads", async () => {
     let tree: BookmarkNode[] = [
       {
         id: "root",
@@ -113,14 +113,19 @@ describe("custom icon source sessions", () => {
         children: [{ id: "one", title: "Renamed", url: "https://same.test" }],
       },
     ]
+    // Change events refresh the tree without rescanning every icon.
     await useBookmarkStore.getState().refresh()
+    expect(useBookmarkStore.getState().tree).toEqual(tree)
+    expect(customIconRepository.prune).toHaveBeenCalledTimes(1)
+    // A retry is a fresh load, so it reconciles against the current tree.
+    await useBookmarkStore.getState().retry()
     expect(customIconRepository.prune).toHaveBeenLastCalledWith(
       "browser",
       new Set(["one"]),
       expect.any(Number)
     )
     vi.mocked(adapter.bookmarks.getTree).mockRejectedValue(new Error("offline"))
-    await useBookmarkStore.getState().refresh()
+    await useBookmarkStore.getState().retry()
     expect(customIconRepository.prune).toHaveBeenCalledTimes(2)
     cleanup?.()
   })

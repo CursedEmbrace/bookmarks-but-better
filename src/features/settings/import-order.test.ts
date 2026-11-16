@@ -468,3 +468,59 @@ describe("imported sibling order", () => {
     )
   }, 60_000)
 })
+
+describe("concurrent imports into a source that sets child order", () => {
+  it("writes siblings concurrently, out of completion order, and restores source order after existing children", async () => {
+    const existing = [
+      bookmark("Existing first"),
+      folder("Shared", [bookmark("Shared existing")]),
+      bookmark("Existing last"),
+    ]
+    const { engine } = destination(existing, "daemon")
+    let inFlight = 0
+    let peak = 0
+    let delay = 12
+    const adapter = {
+      // Each request finishes sooner than the one before it, so completion
+      // order is the reverse of submission order.
+      create: async (details: Parameters<typeof engine.create>[0]) => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        const wait = (delay = Math.max(0, delay - 1))
+        await new Promise((resolve) => setTimeout(resolve, wait))
+        try {
+          return await engine.create(details)
+        } finally {
+          inFlight--
+        }
+      },
+      update: engine.update.bind(engine),
+      getSubTree: engine.getSubTree.bind(engine),
+      setChildOrder: engine.setChildOrder.bind(engine),
+    } as unknown as BookmarkAdapter
+    const incoming = [
+      ...mixed,
+      folder("Shared", [bookmark("Shared new A"), folder("Shared new B")]),
+      bookmark("Final"),
+    ]
+    const plan = planImport(await engine.getTree(), "root", incoming)
+    const result = await executeImportPlan(adapter, plan.nodes, "root")
+
+    expect(result).toMatchObject({ failed: 0, firstError: null, merged: 1 })
+    expect(peak).toBeGreaterThan(1)
+    const children = (await engine.getTree())[0].children!
+    expect(content(children)).toEqual(
+      content([
+        bookmark("Existing first"),
+        folder("Shared", [
+          bookmark("Shared existing"),
+          bookmark("Shared new A"),
+          folder("Shared new B"),
+        ]),
+        bookmark("Existing last"),
+        ...mixed,
+        bookmark("Final"),
+      ])
+    )
+  })
+})

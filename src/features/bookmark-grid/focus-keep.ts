@@ -57,20 +57,23 @@ const KEEP_INTERRUPTS = [
 ] as const
 
 /**
- * Consecutive frames the focus must stay in view, with no new batch of cards
- * mounting, before the keep is let go. Short enough that a later scroll the
- * user did not make with an input (a script, a link to an anchor) is not
- * fought; long enough to cover React committing a batch a frame late.
+ * How long the layout must go without changing size before the keep lets
+ * go. Corrections are driven by layout changes (a ResizeObserver on the
+ * scrolling content), not by counting frames, so a batch React commits late
+ * is still caught; this only decides when "late" has become "settled".
+ * Provisional, tuned with the large-tree UI tests.
  */
-const SETTLED_FRAMES = 4
+const SETTLE_MS = 300
 /** A hard cap, so a page that never settles cannot hold the scroll forever. */
 const MAX_KEEP_MS = 2000
 
+type Bounds = { top: number; bottom: number }
+
 interface Keep {
   element: HTMLElement
-  bounds: { top: number; bottom: number }
-  steadyFrames: number
-  deadline: number
+  bounds: Bounds
+  /** Extends the keep after another batch of cards starts mounting. */
+  touch: (bounds: Bounds) => void
   release: () => void
 }
 
@@ -82,40 +85,98 @@ export function isFocusKept(element: Element): boolean {
 }
 
 /** The visible band of the element's scroll root (or the window). */
-function visibleBounds(element: Element) {
+function visibleBounds(element: Element): Bounds {
   const root = findScrollRoot(element)
   return root?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight }
 }
 
 /**
  * Keep a keyboard-moved focus in view while lazy cards mount around it.
- * Mounting one wave of neighbours can reflow the rows above the focus and
- * bring the next wave near, so a single jump may settle over several
- * batches. The keep is checked every frame and ends once the focus has
- * stayed in view for a few frames, or as soon as the user scrolls, points,
- * types or moves focus.
+ *
+ * Lazy cards are placeholders of estimated height until mounted, so mounting
+ * one wave of neighbours reflows the rows above the focus and can bring the
+ * next wave near: one jump may settle over several batches. Each time the
+ * scrolling content changes size, the focus is scrolled back into view if
+ * the reflow pushed it out.
+ *
+ * The keep ends when the layout has been quiet for `SETTLE_MS`, after
+ * `MAX_KEEP_MS`, when the user scrolls, points, types or moves focus, or
+ * when something else scrolls the focus far out of view (a script or an
+ * anchor link): a reflow nudges the focus past the edge, while a deliberate
+ * jump moves it more than a whole view away.
  */
 export function keepFocusInView(
   element: HTMLElement,
-  bounds: { top: number; bottom: number } = visibleBounds(element)
+  bounds: Bounds = visibleBounds(element)
 ) {
   if (keptFocus?.element === element) {
-    // Another batch is mounting: the layout is not settled yet.
-    keptFocus.bounds = bounds
-    keptFocus.steadyFrames = 0
-    keptFocus.deadline = performance.now() + MAX_KEEP_MS
+    keptFocus.touch(bounds)
     return
   }
   keptFocus?.release()
+
+  const root = findScrollRoot(element)
+  let settleTimer: ReturnType<typeof setTimeout> | undefined
+  let correcting = false
+  const deadline = setTimeout(() => keep.release(), MAX_KEEP_MS)
+
+  const correct = () => {
+    if (keptFocus !== keep) return
+    if (document.activeElement !== element || !element.isConnected) {
+      keep.release()
+      return
+    }
+    const next = element.getBoundingClientRect()
+    if (next.top < keep.bounds.top || next.bottom > keep.bounds.bottom) {
+      correcting = true
+      element.scrollIntoView({ block: "nearest", inline: "nearest" })
+      // The scroll event this causes arrives asynchronously.
+      requestAnimationFrame(() => {
+        correcting = false
+      })
+    }
+  }
+  const settleLater = () => {
+    clearTimeout(settleTimer)
+    settleTimer = setTimeout(() => keep.release(), SETTLE_MS)
+  }
+  const onScroll = () => {
+    if (correcting || keptFocus !== keep) return
+    const next = element.getBoundingClientRect()
+    const view = keep.bounds.bottom - keep.bounds.top
+    if (
+      next.bottom < keep.bounds.top - view ||
+      next.top > keep.bounds.bottom + view
+    )
+      keep.release()
+  }
+  const observer =
+    typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          correct()
+          settleLater()
+        })
+  observer?.observe(root?.firstElementChild ?? document.body)
+  observer?.observe(element)
+  const scrollTarget: EventTarget = root ?? window
+
   const keep: Keep = {
     element,
     bounds,
-    steadyFrames: 0,
-    deadline: performance.now() + MAX_KEEP_MS,
-    release: () => {
+    touch(next) {
+      keep.bounds = next
+      settleLater()
+      requestAnimationFrame(correct)
+    },
+    release() {
+      if (keptFocus === keep) keptFocus = null
+      clearTimeout(settleTimer)
+      clearTimeout(deadline)
+      observer?.disconnect()
+      scrollTarget.removeEventListener("scroll", onScroll)
       for (const input of KEEP_INTERRUPTS)
         window.removeEventListener(input, keep.release, true)
-      if (keptFocus === keep) keptFocus = null
     },
   }
   for (const input of KEEP_INTERRUPTS)
@@ -123,26 +184,8 @@ export function keepFocusInView(
       capture: true,
       passive: true,
     })
+  scrollTarget.addEventListener("scroll", onScroll, { passive: true })
   keptFocus = keep
-  const frame = () => {
-    if (keptFocus !== keep) return
-    if (
-      document.activeElement !== element ||
-      !element.isConnected ||
-      performance.now() > keep.deadline
-    ) {
-      keep.release()
-      return
-    }
-    const next = element.getBoundingClientRect()
-    if (next.top < keep.bounds.top || next.bottom > keep.bounds.bottom) {
-      element.scrollIntoView({ block: "nearest", inline: "nearest" })
-      keep.steadyFrames = 0
-    } else if (++keep.steadyFrames >= SETTLED_FRAMES) {
-      keep.release()
-      return
-    }
-    requestAnimationFrame(frame)
-  }
-  requestAnimationFrame(frame)
+  settleLater()
+  requestAnimationFrame(correct)
 }

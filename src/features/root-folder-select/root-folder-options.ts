@@ -1,3 +1,4 @@
+import { isFolderNode } from "@/lib/bookmark-utils"
 import type { BookmarkNode } from "@/browser"
 
 export interface RootFolderOption {
@@ -24,7 +25,7 @@ function collectFolderPaths(
   }
 
   for (const child of node.children ?? []) {
-    if (child.url === undefined && child.type !== "separator") {
+    if (isFolderNode(child)) {
       result.push(...collectFolderPaths(child, currentPath))
     }
   }
