@@ -5,6 +5,7 @@ import { useCustomIconStore } from "@/stores/custom-icon-store"
 import { useUIStore } from "@/stores/ui-store"
 import { usePreferencesStore } from "@/stores/preferences-store"
 import { BookmarkGrid } from "@/features/bookmark-grid"
+import { DashboardLayout } from "@/features/bookmark-grid/dashboard-layout"
 import { GridErrorBoundary, SafeModeNotice } from "@/features/safety-net"
 import { DndMonitor } from "@/features/dnd"
 import { FilterBar } from "@/features/filter-bar"
@@ -22,7 +23,6 @@ import {
   FolderTreeIcon,
   Search01Icon,
 } from "@hugeicons/core-free-icons"
-import { cn } from "@/lib/utils"
 import { useAppBootstrap } from "@/hooks/use-app-bootstrap"
 // Imported past the feature's barrel on purpose: the listener has to be
 // mounted before the palette exists, and the barrel would defeat the lazy
@@ -95,13 +95,12 @@ export function App() {
   const activeSourceId = useSourceStore((s) => s.activeSourceId)
   const safeMode = usePreferencesStore((s) => s.safeMode)
   const preferencesLoading = usePreferencesStore((s) => s.isLoading)
-  const containerMode = usePreferencesStore((s) => s.containerMode)
   const openBookmarkOrganizer = useUIStore((s) => s.openBookmarkOrganizer)
   const openSearchPalette = useUIStore((s) => s.openSearchPalette)
 
   return (
     <ScrollArea className="h-svh bg-background text-foreground">
-      <div className="flex flex-col gap-5 px-4 pt-8 pb-8 max-sm:pb-24">
+      <DashboardLayout className="px-4 pt-8 pb-8 max-sm:pb-24">
         {/* The header row: the filter bar's breadcrumb on the left, the three
             global actions on the right. It mirrors the grid's width so both
             ends line up with the card columns, and it always renders — the
@@ -109,12 +108,7 @@ export function App() {
             show. Not sticky: search also opens by typing anywhere. Below
             `sm` the breadcrumb and three 48px touch targets don't fit one
             row, so the actions float at the bottom, within thumb reach. */}
-        <header
-          className={cn(
-            "flex w-full min-w-0 items-center gap-2",
-            containerMode === "contained" && "mx-auto max-w-[1440px]"
-          )}
-        >
+        <header className="flex w-full min-w-0 items-center gap-2">
           <div className="min-w-0 flex-1">
             {sourceStatus === "ready" && <FilterBar />}
           </div>
@@ -250,7 +244,7 @@ export function App() {
             </GridErrorBoundary>
           )}
         </main>
-      </div>
+      </DashboardLayout>
 
       {/* DnD monitor (renders nothing, handles drop logic) */}
       <DndMonitor />

@@ -228,7 +228,7 @@ export function AppearancePanel() {
           />
           <SettingRow
             title="Max columns"
-            description="The most columns the dashboard grid will use. Smaller screens use fewer."
+            description="The most columns the dashboard will use. Available space, text size and visible folders may reduce this number."
             control={
               <Select
                 value={String(maxColumns)}
@@ -249,7 +249,7 @@ export function AppearancePanel() {
           />
           <SettingRow
             title="Width"
-            description="Contained keeps the dashboard at most 1440px wide and centers it."
+            description="Contained centers the dashboard within 1440px. Fluid allows more space; sparse cards stay centered in either mode."
             control={
               <Select
                 value={containerMode}

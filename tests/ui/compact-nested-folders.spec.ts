@@ -16,68 +16,78 @@ async function box(locator: Locator) {
   return bounds!
 }
 
-async function seed(page: Page) {
+async function seed(page: Page, separatorFirst = false) {
   await page.goto("/?scenario=firefox-separators")
   await expect(page.getByTestId("bookmark-card").first()).toBeVisible()
-  const ids = await page.evaluate(async (longTitle) => {
-    const storePath = "/src/stores/bookmark-store.ts"
-    const prefsPath = "/src/stores/preferences-store.ts"
-    const { useBookmarkStore } = await import(storePath)
-    const { usePreferencesStore } = await import(prefsPath)
-    const store = useBookmarkStore.getState()
-    const adapter = store.adapter.bookmarks
-    const layouts: Record<string, "grid" | "list"> = {}
-    const ids: Record<string, string> = {}
-    const folder = async (parentId: string, title: string, count = 0) => {
-      const created = await adapter.create({ parentId, title })
-      ids[title] = created.id
-      layouts[created.id] = "grid"
-      for (let i = 0; i < count; i++) {
-        await adapter.create({
-          parentId: created.id,
-          title: `${title} ${i + 1}`,
-          url: `https://example.test/${created.id}/${i}`,
-        })
+  const ids = await page.evaluate(
+    async ({ longTitle, separatorFirst }) => {
+      const storePath = "/src/stores/bookmark-store.ts"
+      const prefsPath = "/src/stores/preferences-store.ts"
+      const { useBookmarkStore } = await import(storePath)
+      const { usePreferencesStore } = await import(prefsPath)
+      const store = useBookmarkStore.getState()
+      const adapter = store.adapter.bookmarks
+      const layouts: Record<string, "grid" | "list"> = {}
+      const ids: Record<string, string> = {}
+      const folder = async (parentId: string, title: string, count = 0) => {
+        const created = await adapter.create({ parentId, title })
+        ids[title] = created.id
+        layouts[created.id] = "grid"
+        for (let i = 0; i < count; i++) {
+          await adapter.create({
+            parentId: created.id,
+            title: `${title} ${i + 1}`,
+            url: `https://example.test/${created.id}/${i}`,
+          })
+        }
+        return created
       }
-      return created
-    }
-    const root = await folder(store.tree[0].id, "Compact fixture")
-    const parent = await folder(root.id, "Warhammer", 1)
-    await folder(parent.id, "Warhammer 40,000", 4)
-    await folder(parent.id, "Age of Sigmar", 2)
-    await folder(parent.id, "Painting & Hobby", 6)
-    await folder(parent.id, "General Subreddits", 2)
-    await folder(parent.id, "Empty")
-    await folder(parent.id, "One", 1)
-    await folder(parent.id, "Large", 20)
-    const separated = await folder(parent.id, "Separated", 2)
-    await adapter.createSeparator(separated.id)
-    for (let i = 3; i <= 4; i++) {
-      await adapter.create({
-        parentId: separated.id,
-        title: `Separated ${i}`,
-        url: `https://example.test/separated/${i}`,
+      const root = await folder(store.tree[0].id, "Compact fixture")
+      const parent = await folder(root.id, "Warhammer", 1)
+      const addSeparated = async () => {
+        const separated = await folder(parent.id, "Separated", 2)
+        await adapter.createSeparator(separated.id)
+        for (let i = 3; i <= 4; i++) {
+          await adapter.create({
+            parentId: separated.id,
+            title: `Separated ${i}`,
+            url: `https://example.test/separated/${i}`,
+          })
+        }
+      }
+      if (separatorFirst) {
+        await addSeparated()
+        await folder(parent.id, "Age of Sigmar", 2)
+      }
+      await folder(parent.id, "Warhammer 40,000", 4)
+      if (!separatorFirst) await folder(parent.id, "Age of Sigmar", 2)
+      await folder(parent.id, "Painting & Hobby", 6)
+      await folder(parent.id, "General Subreddits", 2)
+      await folder(parent.id, "Empty")
+      await folder(parent.id, "One", 1)
+      await folder(parent.id, "Large", 20)
+      if (!separatorFirst) await addSeparated()
+      const mixed = await folder(parent.id, "Mixed", 2)
+      const deep = await folder(mixed.id, "Deep", 1)
+      await folder(deep.id, "Deeper", 2)
+      await folder(parent.id, longTitle, 2)
+      const list = await folder(parent.id, "List stays wide", 2)
+      layouts[list.id] = "list"
+      await store.refresh()
+      store.setRootFolderId(root.id)
+      usePreferencesStore.setState({
+        nestedFolders: true,
+        compactNestedFolders: true,
+        maxColumns: 2,
+        containerMode: "contained",
+        cardLayouts: layouts,
+        collapsedFolders: {},
+        experimentalCardDrag: false,
       })
-    }
-    const mixed = await folder(parent.id, "Mixed", 2)
-    const deep = await folder(mixed.id, "Deep", 1)
-    await folder(deep.id, "Deeper", 2)
-    await folder(parent.id, longTitle, 2)
-    const list = await folder(parent.id, "List stays wide", 2)
-    layouts[list.id] = "list"
-    await store.refresh()
-    store.setRootFolderId(root.id)
-    usePreferencesStore.setState({
-      nestedFolders: true,
-      compactNestedFolders: true,
-      maxColumns: 2,
-      containerMode: "contained",
-      cardLayouts: layouts,
-      collapsedFolders: {},
-      experimentalCardDrag: false,
-    })
-    return ids
-  }, LONG_TITLE)
+      return ids
+    },
+    { longTitle: LONG_TITLE, separatorFirst }
+  )
   await expect(card(page, "Warhammer")).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
   return ids
@@ -129,12 +139,12 @@ test.describe("compact nested folders", () => {
   test("content widths, independent boundaries and local separator row breaks", async ({
     page,
   }) => {
-    await seed(page)
+    // The 34rem root cap cannot fit Large and Separated side by side.
+    // Start with two smaller siblings to isolate local separator row breaks.
+    await seed(page, true)
     const four = await box(card(page, "Warhammer 40,000"))
     const two = await box(card(page, "Age of Sigmar"))
     expect(two.width).toBeLessThan(four.width)
-    expect(Math.abs(two.y - four.y)).toBeLessThan(2)
-    expect(two.x).toBeGreaterThanOrEqual(four.x + four.width)
     for (const title of ["Empty", "One"]) {
       const small = await box(card(page, title))
       expect(small.width).toBeLessThan(four.width)
@@ -158,10 +168,12 @@ test.describe("compact nested folders", () => {
     expect(
       Math.abs(divider.width - ((await box(separated)).width - 32))
     ).toBeLessThan(2)
-    // Its row break cannot make the neighbouring card wrap.
-    expect(
-      Math.abs((await box(large)).y - (await box(separated)).y)
-    ).toBeLessThan(2)
+    // A separator's local row break cannot force a fitting sibling to wrap.
+    const separatedBounds = await box(separated)
+    expect(Math.abs(two.y - separatedBounds.y)).toBeLessThan(2)
+    expect(two.x).toBeGreaterThanOrEqual(
+      separatedBounds.x + separatedBounds.width
+    )
     expect((await box(card(page, "List stays wide"))).width).toBeCloseTo(
       (await box(card(page, "Warhammer"))).width - 32,
       0
@@ -175,10 +187,13 @@ test.describe("compact nested folders", () => {
     await seed(page)
     for (const width of [1000, 700, 390, 1440]) {
       await page.setViewportSize({ width, height: 1100 })
+      await expect
+        .poll(async () => (await box(card(page, "Warhammer"))).width)
+        .toBeCloseTo(Math.min(width - 32, 544), 0)
       await assertBoundaries(page)
       const four = await box(card(page, "Warhammer 40,000"))
       const two = await box(card(page, "Age of Sigmar"))
-      if (width === 1000)
+      if (width === 390)
         expect(two.y).toBeGreaterThanOrEqual(four.y + four.height)
       if (width === 1440)
         await expect
@@ -493,9 +508,15 @@ test.describe("compact nested folders", () => {
       }, containerMode)
       await assertBoundaries(page)
       const parent = await box(card(page, "Warhammer"))
-      expect(
-        containerMode === "contained" ? parent.width < 720 : parent.width > 720
-      ).toBe(true)
+      // Sparse roots share the same cap in both modes; the available
+      // container still changes independently of nested-folder preferences.
+      expect(parent.width).toBeCloseTo(544, 0)
+      await expect
+        .poll(
+          async () =>
+            (await box(page.locator("[data-dashboard-available]"))).width
+        )
+        .toBeCloseTo(containerMode === "contained" ? 1440 : 1868, 0)
     }
     await page.evaluate(async () => {
       const path = "/src/stores/preferences-store.ts"
