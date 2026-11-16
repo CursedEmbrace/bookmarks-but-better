@@ -90,3 +90,6 @@ Each has notes in `docs/` where listed and an automatic browser test in
 - Releasing: read `docs/RELEASING.md` in full first.
 - Daemon: `docs/DAEMON.md` (contributor reference); user docs on the website.
 - Safari build, signing and QA: `docs/SAFARI.md`.
+- Firefox: this fork has its own extension ID and is installed privately as a
+  signed, unlisted add-on. Read `docs/FIREFOX_PRIVATE_INSTALL.md` before
+  changing the Firefox manifest or preparing an upload.
