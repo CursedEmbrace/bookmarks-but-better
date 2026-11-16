@@ -46,7 +46,12 @@ import {
   isCardEntry,
   isSeparator,
 } from "@/lib/bookmark-utils"
-import { compactFolderStyle } from "./compact-folder"
+import {
+  RECLAIM_BELOW_REM,
+  compactFolderStyle,
+  compactMinimumWidthCss,
+} from "./compact-folder"
+import { cardSpacing, spacingCss } from "./card-spacing"
 import {
   Tooltip,
   TooltipTrigger,
@@ -210,15 +215,22 @@ const FolderMenu = React.memo(function FolderMenu({
 
 interface BookmarkCardProps {
   folder: BookmarkNode
+  /** Shorthand for depth 1, kept for existing callers. */
   nested?: boolean
+  /** How many folder cards enclose this one; 0 for a top-level card. */
+  depth?: number
   dragHandleRef?: React.RefObject<HTMLElement | null>
 }
 
 export const BookmarkCard = React.memo(function BookmarkCard({
   folder,
-  nested = false,
+  nested: nestedProp = false,
+  depth: depthProp,
   dragHandleRef,
 }: BookmarkCardProps) {
+  const depth = depthProp ?? (nestedProp ? 1 : 0)
+  const nested = depth > 0
+  const spacing = cardSpacing(depth)
   const display = useCardDisplay()
   const { nestedFolders } = display
   const layout = display.cardLayouts[folder.id] ?? "list"
@@ -273,6 +285,21 @@ export const BookmarkCard = React.memo(function BookmarkCard({
     (c) => c.url === undefined && c.children !== undefined
   )
 
+  // Subfolders reclaim this card's side padding only once the body is
+  // narrower than they need: 12rem for readable headers, or more when the
+  // widest compact subfolder needs it. Compact cards are sized to keep that
+  // much body (compact-folder.ts), so a card that merely hugs small content
+  // keeps its padding; only a genuinely narrow screen reclaims it.
+  const compactChildren =
+    display.compactNestedFolders &&
+    subfolders.length > 0 &&
+    subfolders.every((child) => display.cardLayouts[child.id] === "grid")
+  const reclaimBelow = compactChildren
+    ? `max(${RECLAIM_BELOW_REM}rem, ${subfolders
+        .map((child) => compactMinimumWidthCss(child, display, depth + 1))
+        .join(", ")})`
+    : `${RECLAIM_BELOW_REM}rem`
+
   const toggleLayout = React.useCallback(() => {
     setCardLayout(folder.id, layout === "list" ? "grid" : "list")
   }, [folder.id, layout, setCardLayout])
@@ -293,8 +320,12 @@ export const BookmarkCard = React.memo(function BookmarkCard({
       data-testid="bookmark-card"
       data-compact={compact || undefined}
       data-drop-active={isOver || undefined}
+      data-depth={depth}
+      style={
+        { "--card-pad": spacingCss(spacing.padding) } as React.CSSProperties
+      }
       className={cn(
-        "flex w-full min-w-0 flex-col rounded-2xl bg-card p-4 ring-1 ring-border transition-shadow",
+        "flex w-full min-w-0 flex-col rounded-2xl bg-card p-(--card-pad) ring-1 ring-border transition-shadow",
         nested && "ring-border/50",
         isOver && "shadow-md ring-2 ring-primary"
       )}
@@ -381,8 +412,14 @@ export const BookmarkCard = React.memo(function BookmarkCard({
       {/* Reserve the full card gutter inside the height-animation clip so
           narrow nested groups can reclaim padding without hiding controls.
           The balanced margin/padding keeps the body's normal width unchanged. */}
-      <CollapsibleContent className="-mx-4 -mb-1.5 h-(--collapsible-panel-height) overflow-hidden px-4 pb-1.5 transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none">
-        <div className="flex flex-col gap-3 pt-3">
+      <CollapsibleContent className="-mx-(--card-pad) -mb-1.5 h-(--collapsible-panel-height) overflow-hidden px-(--card-pad) pb-1.5 transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none">
+        <div
+          className="flex flex-col"
+          style={{
+            gap: spacingCss(spacing.bodyGap),
+            paddingTop: spacingCss(spacing.bodyGap),
+          }}
+        >
           {/* Bookmarks */}
           {bookmarks.length > 0 && (
             <div
@@ -428,14 +465,23 @@ export const BookmarkCard = React.memo(function BookmarkCard({
               // never escape its bounds. Header padding and shallow cards
               // stay unchanged; the panel above reserves the same gutter so
               // its height-animation clip cannot hide the reclaimed space.
-              style={{
-                marginInline:
-                  "clamp(calc(var(--spacing) * -4), calc((100% - 12rem) / 2), 0px)",
-              }}
+              style={
+                {
+                  marginInline: `clamp(calc(var(--card-pad) * -1), calc((100% - ${reclaimBelow}) / 2), 0px)`,
+                  gap: spacingCss(spacing.subfolderGap),
+                  // The trailing filler below must not leave a gap of its own.
+                  "--subfolder-gap": spacingCss(spacing.subfolderGap),
+                } as React.CSSProperties
+              }
               className={cn(
-                "flex gap-3",
+                "flex",
                 display.compactNestedFolders
-                  ? "flex-wrap items-start"
+                  ? // Justified rows: cards grow to fill a row they share
+                    // (see compactFolderStyle). This zero-width filler with a
+                    // huge grow factor takes all the leftover space of the
+                    // last row only, so that row keeps its natural widths,
+                    // like the last line of justified text.
+                    "flex-wrap items-start after:ml-[calc(var(--subfolder-gap)*-1)] after:min-w-0 after:grow-[1000] after:basis-0 after:content-['']"
                   : "flex-col"
               )}
             >
@@ -449,14 +495,11 @@ export const BookmarkCard = React.memo(function BookmarkCard({
                   style={
                     display.compactNestedFolders &&
                     display.cardLayouts[subfolder.id] === "grid"
-                      ? compactFolderStyle(
-                          subfolder,
-                          Boolean(display.collapsedFolders[subfolder.id])
-                        )
+                      ? compactFolderStyle(subfolder, display, depth + 1)
                       : undefined
                   }
                 >
-                  <BookmarkCard folder={subfolder} nested />
+                  <BookmarkCard folder={subfolder} depth={depth + 1} />
                 </LazyCard>
               ))}
             </div>

@@ -15,7 +15,8 @@ header and occupied cards share one centered region.
 - Root widths are equal within a layout, independent of bookmark counts.
 - Contained limits the available region to 1440px. Fluid uses the padded page
   width. Sparse groups may be identical because the root-card cap binds first.
-- Compact descendants retain their independent 26rem cap and wrapping policy.
+- Compact descendants keep their own wrapping policy (justified rows; see
+  `COMPACT_NESTED_FOLDERS.md`).
 
 For usable width `W`, actual gap `G`, preferred minimum `M`, maximum `K`, saved
 maximum `L`, and visible root count `R`:

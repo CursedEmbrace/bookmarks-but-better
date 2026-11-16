@@ -10,6 +10,14 @@ function card(page: Page, title: string) {
     .locator("../..")
 }
 
+/** A card's horizontal padding, which shrinks with depth (card-spacing.ts). */
+async function inset(locator: Locator) {
+  return locator.evaluate((el) => {
+    const style = getComputedStyle(el)
+    return parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+  })
+}
+
 async function box(locator: Locator) {
   const bounds = await locator.boundingBox()
   expect(bounds).not.toBeNull()
@@ -148,10 +156,19 @@ test.describe("compact nested folders", () => {
     for (const title of ["Empty", "One"]) {
       const small = await box(card(page, title))
       expect(small.width).toBeLessThan(four.width)
-      expect(small.width).toBeGreaterThanOrEqual(150)
+      // Small cards hug their title down to the 8rem floor (compact-folder.ts).
+      expect(small.width).toBeGreaterThanOrEqual(128)
+      const heading = page.getByRole("heading", { name: title, exact: true })
+      expect(
+        await heading.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)
+      ).toBe(true)
     }
     const large = card(page, "Large")
-    expect((await box(large)).width).toBeLessThanOrEqual(416)
+    // Rows are justified: Large may grow to fill its row, never past it.
+    const parentCard = card(page, "Warhammer")
+    expect((await box(large)).width).toBeLessThanOrEqual(
+      (await box(parentCard)).width - (await inset(parentCard)) + 1
+    )
     expect((await box(large.getByRole("link").last())).y).toBeGreaterThan(
       (await box(large.getByRole("link").first())).y
     )
@@ -166,7 +183,10 @@ test.describe("compact nested folders", () => {
     expect(divider.y).toBeGreaterThanOrEqual(before.y + before.height)
     expect(after.y).toBeGreaterThanOrEqual(divider.y + divider.height)
     expect(
-      Math.abs(divider.width - ((await box(separated)).width - 32))
+      Math.abs(
+        divider.width -
+          ((await box(separated)).width - (await inset(separated)))
+      )
     ).toBeLessThan(2)
     // A separator's local row break cannot force a fitting sibling to wrap.
     const separatedBounds = await box(separated)
@@ -175,7 +195,8 @@ test.describe("compact nested folders", () => {
       separatedBounds.x + separatedBounds.width
     )
     expect((await box(card(page, "List stays wide"))).width).toBeCloseTo(
-      (await box(card(page, "Warhammer"))).width - 32,
+      (await box(card(page, "Warhammer"))).width -
+        (await inset(card(page, "Warhammer"))),
       0
     )
     await assertBoundaries(page)
@@ -492,7 +513,8 @@ test.describe("compact nested folders", () => {
       usePreferencesStore.getState().setCardLayout(ids["Age of Sigmar"], "list")
     }, ids)
     expect((await box(card(page, "Age of Sigmar"))).width).toBeCloseTo(
-      (await box(card(page, "Warhammer"))).width - 32,
+      (await box(card(page, "Warhammer"))).width -
+        (await inset(card(page, "Warhammer"))),
       0
     )
     await expect(card(page, "Warhammer 40,000")).toHaveAttribute(
@@ -664,5 +686,96 @@ test.describe("compact nested folders", () => {
     await expect(first).toBeVisible()
     expect((await box(first)).width).toBeCloseTo(width, 0)
     await assertBoundaries(page)
+  })
+})
+
+test.describe("compact rows and nested minimum widths", () => {
+  test.use({ viewport: { width: 640, height: 1400 } })
+
+  async function seedTree(page: Page) {
+    await page.goto("/?scenario=firefox-separators")
+    await expect(page.getByTestId("bookmark-card").first()).toBeVisible()
+    await page.evaluate(async () => {
+      const storePath = "/src/stores/bookmark-store.ts"
+      const prefsPath = "/src/stores/preferences-store.ts"
+      const { useBookmarkStore } = await import(storePath)
+      const { usePreferencesStore } = await import(prefsPath)
+      let n = 0
+      const bm = (title: string) => ({
+        id: `b${n++}`,
+        title,
+        url: `https://${title}.example/`,
+      })
+      const f = (title: string, children: unknown[]) => ({
+        id: `f-${title.replace(/\W/g, "")}`,
+        title,
+        children,
+      })
+      const top = f("Top", [
+        bm("top"),
+        f("Card Games", [
+          bm("cards"),
+          f("Marvel Snap", [bm("snap")]),
+          f("Yu-Gi-Oh", [bm("ygo")]),
+          f("MTG: Magic the Gathering", [bm("a"), bm("b"), bm("c")]),
+        ]),
+        f("Diablo", [bm("d4"), f("Season 15", [bm("s15")])]),
+      ])
+      const root = { id: "root-x", title: "Root", children: [top] }
+      const folders: string[] = []
+      const walk = (node: { id: string; children?: unknown[] }) => {
+        if (!node.children) return
+        folders.push(node.id)
+        node.children.forEach((child) => walk(child as typeof node))
+      }
+      walk(top)
+      useBookmarkStore.setState({
+        tree: [root],
+        rootFolder: root,
+        rootFolderId: root.id,
+      })
+      usePreferencesStore.setState({
+        nestedFolders: true,
+        compactNestedFolders: true,
+        cardLayouts: Object.fromEntries(folders.map((id) => [id, "grid"])),
+      })
+    })
+  }
+
+  test("full rows are justified and the last row keeps natural widths", async ({
+    page,
+  }) => {
+    await seedTree(page)
+    const parent = card(page, "Card Games")
+    const parentBox = await box(parent)
+    const contentRight =
+      parentBox.x + parentBox.width - (await inset(parent)) / 2
+    const snap = await box(card(page, "Marvel Snap"))
+    const ygo = await box(card(page, "Yu-Gi-Oh"))
+    const mtg = await box(card(page, "MTG: Magic the Gathering"))
+    // Marvel Snap and Yu-Gi-Oh share a row that MTG did not fit into.
+    expect(Math.abs(snap.y - ygo.y)).toBeLessThan(2)
+    expect(mtg.y).toBeGreaterThan(snap.y + snap.height)
+    // That full row is justified: its right edge meets the content edge.
+    expect(Math.abs(ygo.x + ygo.width - contentRight)).toBeLessThan(2)
+    // The last row is not stretched.
+    expect(mtg.x + mtg.width).toBeLessThan(contentRight - 20)
+  })
+
+  test("a narrow folder counts its subfolders, keeping their padding", async ({
+    page,
+  }) => {
+    await seedTree(page)
+    const diablo = card(page, "Diablo")
+    const outer = await box(diablo)
+    const padding = (await inset(diablo)) / 2
+    const inner = await box(card(page, "Season 15"))
+    expect(inner.x).toBeGreaterThanOrEqual(outer.x + padding - 1)
+    expect(inner.x + inner.width).toBeLessThanOrEqual(
+      outer.x + outer.width - padding + 1
+    )
+    expect(inner.y + inner.height).toBeLessThanOrEqual(
+      outer.y + outer.height - padding + 1
+    )
   })
 })
