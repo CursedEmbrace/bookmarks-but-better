@@ -2,6 +2,7 @@ import * as React from "react"
 import type { BookmarkNode } from "@/browser"
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { findNodeById } from "@/lib/bookmark-utils"
+import { keepFocusInView } from "./focus-keep"
 import {
   buildNavigationColumns,
   type CardItemsDisplay,
@@ -207,6 +208,7 @@ export function useGridNavigation(options: GridNavigationOptions) {
             !focusIsElsewhereInGrid
           ) {
             element.focus()
+            keepFocusInView(element)
           }
         } else {
           const previous = elements.current.get(id)
@@ -272,7 +274,11 @@ export function useGridNavigation(options: GridNavigationOptions) {
 
         event.preventDefault()
         setActiveId(targetId)
-        elements.current.get(targetId)?.focus()
+        const target = elements.current.get(targetId)
+        if (target) {
+          target.focus()
+          keepFocusInView(target)
+        }
       },
     }),
     [setActiveId]

@@ -4,6 +4,7 @@ import { collectCardItems, type CardItemsDisplay } from "./grid-navigation"
 import { GridNavigationContext, NO_SUBSCRIPTION } from "./use-grid-navigation"
 import { LazyCardsContext } from "./lazy-cards-gate"
 import { cn } from "@/lib/utils"
+import { findScrollRoot, isFocusKept, keepFocusInView } from "./focus-keep"
 
 /**
  * A folder card that exists in full only near the viewport.
@@ -48,46 +49,6 @@ interface SharedObserver {
 /** One observer per scroll root, shared by every card scrolling inside it. */
 const observers = new Map<Element | null, SharedObserver>()
 
-/**
- * Each element's answer from `findScrollRoot`, so the cards of one column —
- * which share every ancestor — ask `getComputedStyle` once between them
- * instead of once per card per ancestor. With 300 cards that walk was the
- * grid's largest cost of its own on mount (issue #85). Weak, so a torn-down
- * grid takes its entries with it; the grid never re-parents its DOM, so an
- * element's scroll root does not change while it lives.
- */
-const scrollRoots = new WeakMap<Element, Element | null>()
-
-/**
- * The element whose scroll position decides what is near: the dashboard's own
- * scroll area, found generically rather than by name. With the viewport as the
- * root an ancestor scroll container would clip a card away before the margin
- * could count it as near.
- */
-function findScrollRoot(element: Element): Element | null {
-  const visited: Element[] = []
-  let root: Element | null = null
-  for (
-    let node = element.parentElement;
-    node && node !== document.body;
-    node = node.parentElement
-  ) {
-    const cached = scrollRoots.get(node)
-    if (cached !== undefined) {
-      root = cached
-      break
-    }
-    const { overflowY } = getComputedStyle(node)
-    if (overflowY === "auto" || overflowY === "scroll") {
-      root = node
-      break
-    }
-    visited.push(node)
-  }
-  for (const node of visited) scrollRoots.set(node, root)
-  return root
-}
-
 function observeNear(element: Element, onNear: OnNear): () => void {
   const root = findScrollRoot(element)
   let shared = observers.get(root)
@@ -105,14 +66,18 @@ function observeNear(element: Element, onNear: OnNear): () => void {
             bottom: window.innerHeight,
           }
           const focusBounds = focused?.getBoundingClientRect()
+          // A focus already being kept stays kept even if an earlier batch's
+          // reflow has pushed it out: mounting one wave of neighbours brings
+          // the next wave near, so one jump can settle over several batches.
           const keepFocusVisible =
             focused instanceof HTMLElement &&
-            focused.matches(":focus-visible") &&
-            focused.closest('[data-compact="true"]') &&
-            (!root || root.contains(focused)) &&
-            focusBounds &&
-            focusBounds.top >= bounds.top &&
-            focusBounds.bottom <= bounds.bottom
+            (isFocusKept(focused) ||
+              (focused.matches(":focus-visible") &&
+                focused.closest('[data-compact="true"]') &&
+                (!root || root.contains(focused)) &&
+                focusBounds &&
+                focusBounds.top >= bounds.top &&
+                focusBounds.bottom <= bounds.bottom))
           for (const entry of entries) {
             observed.get(entry.target)?.(
               entry.isIntersecting,
@@ -120,40 +85,7 @@ function observeNear(element: Element, onNear: OnNear): () => void {
               entry.boundingClientRect.width
             )
           }
-          if (keepFocusVisible) {
-            let interrupted = false
-            const interrupt = () => {
-              interrupted = true
-            }
-            // A changed scrollTop alone cannot distinguish user input from
-            // the browser's own scroll anchoring during the reflow.
-            const inputs = [
-              "wheel",
-              "touchmove",
-              "pointerdown",
-              "keydown",
-              "dragover",
-            ]
-            for (const input of inputs)
-              window.addEventListener(input, interrupt, {
-                capture: true,
-                passive: true,
-              })
-            requestAnimationFrame(() => {
-              for (const input of inputs)
-                window.removeEventListener(input, interrupt, true)
-              if (
-                interrupted ||
-                document.activeElement !== focused ||
-                !focused.isConnected
-              )
-                return
-              const next = focused.getBoundingClientRect()
-              if (next.top < bounds.top || next.bottom > bounds.bottom) {
-                focused.scrollIntoView({ block: "nearest", inline: "nearest" })
-              }
-            })
-          }
+          if (keepFocusVisible) keepFocusInView(focused, bounds)
         },
         { root, rootMargin: NEAR_VIEWPORT_MARGIN }
       ),
