@@ -165,7 +165,18 @@ for (const compact of [false, true]) {
     const heading = levelHeading(page, 20)
     const g = await folderGeometry(heading)
     expectUsableFolder(g)
-    expect(g.title.width).toBeGreaterThan(100)
+    // A compact card hugs a short title, so the title box may be exactly as
+    // wide as its text: require the full text width (or 100px), not a fixed box.
+    const textWidth = await heading.evaluate((el) => {
+      const probe = el.cloneNode(true) as HTMLElement
+      probe.style.cssText =
+        "position:absolute;visibility:hidden;white-space:nowrap;width:auto"
+      el.parentElement!.append(probe)
+      const width = probe.getBoundingClientRect().width
+      probe.remove()
+      return width
+    })
+    expect(g.title.width).toBeGreaterThanOrEqual(Math.min(100, textWidth - 1))
     await page.mouse.click(
       g.menu.x + g.menu.width / 2,
       g.menu.y + g.menu.height / 2

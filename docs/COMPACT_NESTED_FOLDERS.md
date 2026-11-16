@@ -10,13 +10,22 @@ source-scoped.
 ## Layout
 
 - Nested grid cards size to their direct icon rows and their headings. Their
-  siblings share a wrapping flex container with the existing `gap-3` spacing,
-  no growth to fill unused space, and no prescribed pairings.
+  siblings share a wrapping flex container, with no prescribed pairings.
+- **Rows are justified, like text** (Jaime, 16 November 2026). Cards that share
+  a row grow to fill its leftover width, so right edges line up. The last row
+  in each folder keeps its natural widths, like the last line of a justified
+  paragraph: a trailing zero-width filler with a large grow factor takes that
+  row's spare space. A card never grows past its row.
+- **Spacing shrinks with depth** (`card-spacing.ts`): padding 16px at the top
+  level, 12px one level in, 10px deeper, with tighter header and sibling gaps
+  inside nested cards. Values are theme spacing units.
 - The longest icon run between separators supplies a preferred minimum width,
   up to six icons. The calculation includes favicon size, tile borders, theme
-  spacing, inter-icon gaps and card padding. A usable 10rem minimum and 26rem
-  maximum are both constrained by the available parent width. Headings and
-  deeper descendants can also contribute to the card's intrinsic width.
+  spacing, inter-icon gaps and card padding. Every compact subfolder a card
+  shows also counts, at its own minimum plus this card's padding, and a card
+  holding subfolders keeps at least 12rem of body. An 8rem floor keeps header
+  buttons and a few letters of title. All minimums are constrained by the
+  available parent width (`compact-folder.ts`).
 - Long titles wrap, including unbroken names. Existing menu and collapse
   buttons retain their hit areas. Large collections wrap their icons internally.
 - Separators remain full-row elements of their own folder's icon grid. They
@@ -25,7 +34,8 @@ source-scoped.
   original stacked presentation. Disabling nested folders retains the existing
   flat dashboard behaviour.
 - In either presentation, narrow nested groups progressively reclaim their
-  parent's horizontal padding once the body is narrower than 12rem. They
+  parent's horizontal padding once the body is narrower than 12rem (or the
+  widest compact subfolder's minimum, if larger). They
   reclaim at most that padding, so further nesting stops consuming width without
   escaping the owning card. Headers retain their normal padding. The collapsible
   panel reserves the same horizontal gutter inside its animation clip. This
@@ -81,7 +91,8 @@ minimum width or escaping that parent. At the default font size, sufficiently
 wide noncompact cards stop shrinking at 192px; narrower parents remain the limit.
 Shallow cards with enough space keep their normal insets. Headers keep their
 padding, titles still truncate, and noncompact siblings still stack. Compact
-intrinsic sizing, the 26rem cap, wrapping, and the opt-in preference are unchanged.
+intrinsic sizing, wrapping, and the opt-in preference are unchanged. (The
+former 26rem cap was later replaced by justified rows.)
 
 `tests/ui/deep-noncompact-folders.spec.ts` checks depths 1/2/6/8/10/12/20,
 including the 768 × 900 / Max columns six reproduction. It measures clipping

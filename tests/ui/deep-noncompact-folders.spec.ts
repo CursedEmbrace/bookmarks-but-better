@@ -31,11 +31,17 @@ for (const depth of [1, 2, 6, 8, 10, 12, 20]) {
         measurements.push({ ...options, level, ...geometry })
         expectUsableFolder(geometry)
         if (level > 0 && level <= 2 && options.width === 1440) {
-          const parent = await levelHeading(page, level - 1)
-            .locator("../..")
-            .boundingBox()
-          // Preserve the established shallow, full-width inset at desktop size.
-          expect(geometry.card.width).toBeCloseTo(parent!.width - 32, 0)
+          const parentCard = levelHeading(page, level - 1).locator("../..")
+          const parent = await parentCard.boundingBox()
+          // Padding shrinks with depth (card-spacing.ts); a shallow child
+          // still spans its parent's full width inside the parent's padding.
+          const inset = await parentCard.evaluate((el) => {
+            const style = getComputedStyle(el)
+            return (
+              parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+            )
+          })
+          expect(geometry.card.width).toBeCloseTo(parent!.width - inset, 0)
         }
       }
       const heading = levelHeading(page, depth)
