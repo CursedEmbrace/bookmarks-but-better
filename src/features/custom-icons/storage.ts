@@ -5,10 +5,19 @@ export interface IconRecord {
   id: string
   image: string
   updatedAt: number
+  /** When a source read first found this icon's bookmark missing. */
+  missingSince?: number
 }
 
 const DB_NAME = "bookmarks-but-better-custom-icons"
 const MAX_SOURCE_BYTES = 32 * 1024 * 1024
+/**
+ * How long an icon outlives its bookmark before cleanup deletes it. One read
+ * is not proof a bookmark is gone: a vault file caught mid-save, or a source
+ * that briefly reports a partial tree, must not cost icons the user cannot
+ * recreate. Provisional; long enough to span ordinary restore-and-retry.
+ */
+export const ORPHAN_GRACE_MS = 7 * 24 * 60 * 60 * 1000
 
 /** Durable user data, separate from both the evictable favicon cache and preferences. */
 export class CustomIconRepository {
@@ -130,11 +139,16 @@ export class CustomIconRepository {
     })
   }
 
-  /** Only a successful full-source read can collect orphans. Newer writes survive stale reads. */
+  /**
+   * Marks icons whose bookmark a full-source read did not find, and deletes
+   * only those that have stayed missing for `ORPHAN_GRACE_MS`. A bookmark
+   * that reappears clears its mark. Newer writes survive stale reads.
+   */
   async prune(
     source: string,
     liveIds: Set<string>,
-    readStartedAt: number
+    readStartedAt: number,
+    now = Date.now()
   ): Promise<void> {
     const db = await this.db()
     await new Promise<void>((resolve, reject) => {
@@ -144,8 +158,17 @@ export class CustomIconRepository {
         const cursor = request.result
         if (!cursor) return
         const record = cursor.value as IconRecord
-        if (!liveIds.has(record.id) && record.updatedAt < readStartedAt)
-          cursor.delete()
+        if (liveIds.has(record.id)) {
+          if (record.missingSince !== undefined) {
+            const live = { ...record }
+            delete live.missingSince
+            cursor.update(live)
+          }
+        } else if (record.updatedAt < readStartedAt) {
+          if (record.missingSince === undefined)
+            cursor.update({ ...record, missingSince: now })
+          else if (now - record.missingSince >= ORPHAN_GRACE_MS) cursor.delete()
+        }
         cursor.continue()
       }
       tx.oncomplete = () => resolve()

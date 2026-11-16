@@ -1,3 +1,4 @@
+import { isCardEntry, isSeparator } from "@/lib/bookmark-utils"
 import * as React from "react"
 import type { BookmarkNode } from "@/browser"
 import type { CardDisplay } from "@/stores/preferences-store"
@@ -31,10 +32,8 @@ export function estimateCardHeight(
 ): number {
   const bookmarks = (folder.children ?? []).filter((c) => c.url !== undefined)
   const count = bookmarks.length
-  const entries = (folder.children ?? []).filter(
-    (c) => c.url !== undefined || c.type === "separator"
-  )
-  const separators = entries.filter((c) => c.type === "separator").length
+  const entries = (folder.children ?? []).filter(isCardEntry)
+  const separators = entries.filter(isSeparator).length
   const layout = display.cardLayouts[folder.id] ?? "list"
 
   // Header (~40px) + padding (~24px)
@@ -49,7 +48,7 @@ export function estimateCardHeight(
     let rows = 0
     let run = 0
     for (const entry of entries) {
-      if (entry.type === "separator") {
+      if (isSeparator(entry)) {
         rows += Math.ceil(run / cols)
         run = 0
       } else run++

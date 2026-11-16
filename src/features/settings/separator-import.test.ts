@@ -62,6 +62,23 @@ describe("separator import/export", () => {
     expect(formatImportResult(result)).toContain("4 separators imported")
   })
 
+  it("leaves separators out of the plan for a destination without them, with no failures", async () => {
+    const create = vi.fn(async ({ title }: { title: string }) => ({
+      id: title,
+    }))
+    const adapter = { create } as unknown as BookmarkAdapter
+    const plan = planImport([], "target", nodes, { separators: false })
+    expect(plan.nodes.map((node) => node.kind)).toEqual(["bookmark", "folder"])
+    const result = await executeImportPlan(adapter, plan.nodes, "target")
+    expect(result).toMatchObject({
+      failed: 0,
+      bookmarks: 1,
+      folders: 1,
+      firstError: null,
+    })
+    expect(result.separators).toBeUndefined()
+  })
+
   it("reports unsupported separators without creating invalid bookmarks or empty folders", async () => {
     const create = vi.fn(async ({ title }: { title: string }) => ({
       id: title,

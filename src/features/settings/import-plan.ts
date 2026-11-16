@@ -1,4 +1,5 @@
 import type { BookmarkNode } from "@/browser"
+import { isFolderNode, isSeparator } from "@/lib/bookmark-utils"
 
 export type ConflictResolution = "skip" | "replace" | "keep-both"
 
@@ -88,8 +89,12 @@ function findNodeById(nodes: BookmarkNode[], id: string): BookmarkNode | null {
 export function planImport(
   tree: BookmarkNode[],
   destinationId: string,
-  imported: BookmarkNode[]
+  imported: BookmarkNode[],
+  options: { separators?: boolean } = {}
 ): ImportPlan {
+  // Separators are a Platform Capability: a destination that cannot store
+  // them omits them, the same as the file formats that have none.
+  const keepSeparators = options.separators ?? true
   const destination = findNodeById(tree, destinationId)
   const conflicts: ImportConflict[] = []
   let keyCounter = 0
@@ -108,8 +113,11 @@ export function planImport(
       if (!existingByUrl.has(key)) existingByUrl.set(key, node)
     }
 
-    return nodes.map((node): ImportPlanNode => {
-      if (node.type === "separator") return { kind: "separator" }
+    const planned = keepSeparators
+      ? nodes
+      : nodes.filter((node) => !isSeparator(node))
+    return planned.map((node): ImportPlanNode => {
+      if (isSeparator(node)) return { kind: "separator" }
       if (node.url !== undefined) {
         const match = existingByUrl.get(normalizeUrl(node.url))
         if (!match) {
@@ -146,9 +154,7 @@ export function planImport(
 
       const match = existing.find(
         (child) =>
-          child.type !== "separator" &&
-          child.url === undefined &&
-          sameFolderName(child.title, node.title)
+          isFolderNode(child) && sameFolderName(child.title, node.title)
       )
 
       return {

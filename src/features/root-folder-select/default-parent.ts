@@ -1,3 +1,4 @@
+import { isFolderNode } from "@/lib/bookmark-utils"
 import type { BookmarkNode } from "@/browser"
 
 /**
@@ -34,9 +35,7 @@ export function resolveDefaultCreateParentId(
   const root = tree[0]
   if (!root) return null
 
-  const childFolders = (root.children ?? []).filter(
-    (child) => child.url === undefined && child.type !== "separator"
-  )
+  const childFolders = (root.children ?? []).filter(isFolderNode)
 
   const bookmarksBar = childFolders.find((child) =>
     BOOKMARKS_BAR_IDS.includes(child.id)

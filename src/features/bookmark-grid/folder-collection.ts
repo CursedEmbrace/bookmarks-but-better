@@ -1,5 +1,5 @@
 import type { BookmarkNode } from "@/browser"
-import { collectAllFolders } from "@/lib/bookmark-utils"
+import { collectAllFolders, isCardEntry } from "@/lib/bookmark-utils"
 import { sortFoldersByOrder } from "@/features/dnd"
 
 interface GetVisibleFoldersOptions {
@@ -43,9 +43,7 @@ export function getVisibleFolders({
   // (bookmark-card.tsx nests subfolders inline when Nested folders is on).
   // The id stays the root's real id, so keyboard navigation and lazy cards
   // key off the same identity as everywhere else the root is referenced.
-  const rootBookmarks = (displayRoot.children ?? []).filter(
-    (child) => child.url !== undefined || child.type === "separator"
-  )
+  const rootBookmarks = (displayRoot.children ?? []).filter(isCardEntry)
   if (rootBookmarks.length === 0) return folders
 
   const rootCard: BookmarkNode = {

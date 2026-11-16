@@ -92,7 +92,10 @@ which changes how compact rows wrap. That exposed a race in the lazy-card
 focus keeping: after a keyboard jump (End, say), cards mounting around the
 focus could reflow it out of view over a second batch that the old
 one-batch check did not cover (`compact-nested-folders` "large trees" failed
-about one run in three). `focus-keep.ts` now holds a keyboard-moved focus in
-view every frame until it has stayed visible for four frames, the user
-scrolls, points, types or moves focus, or two seconds pass. Keyboard
+about one run in three). `focus-keep.ts` now keeps a keyboard-moved focus in
+view while lazy cards settle: a ResizeObserver on the scrolling content scrolls
+the focus back whenever a reflow pushes it out. The keep ends once the layout
+has been quiet for 300ms, after two seconds, when the user scrolls, points,
+types or moves focus, or when something else scrolls the focus more than a
+whole view away (a script or anchor link, which it must not fight). Keyboard
 navigation starts the keep directly; `LazyCard` batches extend it.
