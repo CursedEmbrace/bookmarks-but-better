@@ -1,6 +1,6 @@
 # Issue tracker: GitHub Issues (integration-neutral)
 
-Issues and specs for this repo live in GitHub Issues on `farhadeidi/bookmarks-but-better`. The roadmap board is the user-owned GitHub project *Bookmarks But Better - Roadmap*: https://github.com/users/farhadeidi/projects/6.
+Issues and specs for this repo live in GitHub Issues on `CursedEmbrace/bookmarks-but-better` (this fork, remote `origin`). There is no roadmap board yet. Do not file issues, comments or pull requests on the original, `farhadeidi/bookmarks-but-better` (remote `upstream`), unless Jaime asks; offering finished features back to it is done later by pull request, with her approval.
 
 `gh` is the tracker CLI. Do not use Linear.
 

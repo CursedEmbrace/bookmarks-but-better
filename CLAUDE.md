@@ -69,9 +69,10 @@ Each has notes in `docs/` where listed and an automatic browser test in
 - UI components: shadcn/ui per `components.json` (`base-maia`, `hugeicons`).
   Check the current API at `https://ui.shadcn.com/llms.txt` or the
   component's docs page rather than guessing.
-- Issues: use GitHub Issues with `gh`. `docs/agents/` still describes the
-  original author's tracker and roadmap board; confirm with Jaime before filing
-  anywhere.
+- Issues: GitHub Issues on this fork (`CursedEmbrace/bookmarks-but-better`),
+  via `gh` (see `docs/agents/issue-tracker.md`). Never file issues, comments or
+  pull requests on the original unless Jaime asks; features may be offered
+  back to it later by pull request, with her approval.
 
 ## Verification
 
