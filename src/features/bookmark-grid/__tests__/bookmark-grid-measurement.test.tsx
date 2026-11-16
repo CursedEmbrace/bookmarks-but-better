@@ -266,4 +266,31 @@ describe("BookmarkGrid card measurement", () => {
     report(container, { one: 60, two: 100, three: 100 }, 240)
     expect(columns(container)).toEqual([["one", "three"], ["two"]])
   })
+
+  it("accepts shorter heights after widening within the same column count", () => {
+    let availableWidth = 800
+    const rectangles = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        return {
+          width: this.hasAttribute("data-dashboard-available")
+            ? availableWidth
+            : this.style.width === "17rem"
+              ? 272
+              : 0,
+          height: this.style.width === "17rem" ? 16 : 0,
+        } as DOMRect
+      })
+    try {
+      const { container } = mount()
+      report(container, { one: 400, two: 100, three: 100 }, 392)
+      expect(columns(container)).toEqual([["one"], ["two", "three"]])
+      availableWidth = 1200
+      act(() => window.dispatchEvent(new Event("resize")))
+      report(container, { one: 100, two: 100, three: 100 }, 544)
+      expect(columns(container)).toEqual([["one", "three"], ["two"]])
+    } finally {
+      rectangles.mockRestore()
+    }
+  })
 })

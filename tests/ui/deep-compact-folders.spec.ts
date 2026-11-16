@@ -114,8 +114,8 @@ for (const depth of [6, 8, 10, 11, 12, 20]) {
       body: JSON.stringify(measurements, null, 2),
       contentType: "application/json",
     })
-    // Wide noncompact desktop cards retain their established full-width inset.
-    // Narrow noncompact cases are covered in deep-noncompact-folders.spec.ts.
+    // A single desktop root is now capped at 34rem. Noncompact descendants
+    // retain their ordinary shallow inset, then the shared narrow safeguard.
     if (depth <= 12) {
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.evaluate(async () => {
@@ -126,7 +126,25 @@ for (const depth of [6, 8, 10, 11, 12, 20]) {
       const card = page
         .getByRole("heading", { name: `Level ${depth}`, exact: true })
         .locator("../..")
-      expect((await card.boundingBox())!.width).toBeGreaterThan(300)
+      const root = page
+        .getByRole("heading", { name: "Level 0", exact: true })
+        .locator("../..")
+      const firstChild = page
+        .getByRole("heading", { name: "Level 1", exact: true })
+        .locator("../..")
+      await expect
+        .poll(async () => (await root.boundingBox())!.width)
+        .toBeCloseTo(544, 0)
+      expect(
+        (await root.boundingBox())!.width -
+          (await firstChild.boundingBox())!.width
+      ).toBeCloseTo(32, 0)
+      expect((await card.boundingBox())!.width).toBeGreaterThanOrEqual(191)
+      expect(
+        (await card
+          .getByRole("heading", { name: `Level ${depth}`, exact: true })
+          .boundingBox())!.width
+      ).toBeGreaterThan(80)
       await card
         .getByRole("button", { name: "Folder actions", exact: true })
         .click()

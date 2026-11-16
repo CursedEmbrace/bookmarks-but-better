@@ -70,7 +70,8 @@ export function distributeToColumns(
   folders: BookmarkNode[],
   columnCount: number,
   display: CardHeightDisplay,
-  measuredHeights: ReadonlyMap<string, number>
+  measuredHeights: ReadonlyMap<string, number>,
+  gap = CARD_GAP
 ): BookmarkNode[][] {
   const columns: BookmarkNode[][] = Array.from(
     { length: columnCount },
@@ -89,7 +90,7 @@ export function distributeToColumns(
     }
 
     columns[shortest].push(folder)
-    heights[shortest] += height + CARD_GAP
+    heights[shortest] += height + gap
   }
 
   return columns
@@ -122,7 +123,7 @@ const NO_HEIGHTS: ReadonlyMap<string, number> = new Map()
  * that decide the distribution — and after that only upwards, and only by more
  * than the threshold. Each card therefore causes a bounded number of
  * re-balances per generation, and a generation only turns over when the
- * folders, the column count or the card layouts change: never in response to
+ * folders, column count/width or card layouts change: never in response to
  * our own re-balance. Once no card crosses the threshold there is no state
  * write, so nothing re-renders and the observer falls silent.
  *
@@ -136,7 +137,8 @@ const NO_HEIGHTS: ReadonlyMap<string, number> = new Map()
 export function useMeasuredCardHeights(
   folders: BookmarkNode[],
   columnCount: number,
-  display: CardHeightDisplay
+  display: CardHeightDisplay,
+  columnWidth?: number
 ) {
   const { cardLayouts, collapsedFolders, compactNestedFolders } = display
   const [heights, setHeights] =
@@ -148,8 +150,14 @@ export function useMeasuredCardHeights(
   const observer = React.useRef<ResizeObserver | null>(null)
 
   const generation = React.useMemo(
-    () => ({ folders, columnCount, cardLayouts, compactNestedFolders }),
-    [folders, columnCount, cardLayouts, compactNestedFolders]
+    () => ({
+      folders,
+      columnCount,
+      columnWidth,
+      cardLayouts,
+      compactNestedFolders,
+    }),
+    [folders, columnCount, columnWidth, cardLayouts, compactNestedFolders]
   )
   const currentGeneration = React.useRef(generation)
   /** The generation a collapse toggle is holding still, if any. */

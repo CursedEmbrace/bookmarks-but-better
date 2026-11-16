@@ -1,13 +1,14 @@
 import * as React from "react"
 import { useBookmarkStore } from "@/stores/bookmark-store"
 import { useUIStore } from "@/stores/ui-store"
-import { useCardDisplay, usePreferencesStore } from "@/stores/preferences-store"
+import { useCardDisplay } from "@/stores/preferences-store"
 import { BookmarkCard } from "@/features/bookmark-card"
 import { useSortableFolder, DropIndicator } from "@/features/dnd"
 import { autoScrollDashboard } from "@/features/dnd/auto-scroll"
 import type { BookmarkNode } from "@/browser"
 import { cn } from "@/lib/utils"
-import { getVisibleFolders } from "./folder-collection"
+import { DashboardLayout } from "./dashboard-layout"
+import { DashboardLayoutContext } from "./dashboard-layout-context"
 import {
   distributeToColumns,
   estimateCardHeight,
@@ -17,41 +18,6 @@ import { LazyCard } from "./lazy-card"
 import { LazyCardsContext, shouldGateCards } from "./lazy-cards-gate"
 import { BookmarkGridEmpty } from "./bookmark-grid-empty"
 import { GridNavigationContext, useGridNavigation } from "./use-grid-navigation"
-
-function getColumnCountForWidth(): number {
-  const w = window.innerWidth
-  if (w >= 1536) return 6
-  if (w >= 1280) return 5
-  if (w >= 1024) return 4
-  if (w >= 768) return 3
-  if (w >= 640) return 2
-  return 1
-}
-
-function useColumnCount(maxColumns: number): number {
-  const [columnCount, setColumnCount] = React.useState(() =>
-    Math.min(getColumnCountForWidth(), maxColumns)
-  )
-
-  React.useEffect(() => {
-    const breakpoints = [640, 768, 1024, 1280, 1536]
-    const queries = breakpoints.map((bp) =>
-      window.matchMedia(`(min-width: ${bp}px)`)
-    )
-
-    function update() {
-      setColumnCount(Math.min(getColumnCountForWidth(), maxColumns))
-    }
-
-    update()
-    for (const q of queries) q.addEventListener("change", update)
-    return () => {
-      for (const q of queries) q.removeEventListener("change", update)
-    }
-  }, [maxColumns])
-
-  return columnCount
-}
 
 function SortableFolderCard({
   folder,
@@ -77,8 +43,29 @@ function SortableFolderCard({
 }
 
 export function BookmarkGrid() {
-  const rootFolder = useBookmarkStore((s) => s.rootFolder)
-  const tree = useBookmarkStore((s) => s.tree)
+  const layout = React.useContext(DashboardLayoutContext)
+  // Keep the grid independently renderable (tests and embedded consumers).
+  // In App the header and grid already share the surrounding layout owner.
+  return layout ? (
+    <BookmarkGridContent />
+  ) : (
+    <DashboardLayout>
+      <BookmarkGridContent />
+    </DashboardLayout>
+  )
+}
+
+function BookmarkGridContent() {
+  const layout = React.useContext(DashboardLayoutContext)!
+  if (layout.collectionError) throw layout.collectionError
+  const {
+    folders,
+    displayRoot,
+    experimentalCardDrag,
+    columnCount,
+    columnWidth,
+    gap,
+  } = layout
   const isLoading = useBookmarkStore((s) => s.isLoading)
   const mutationError = useBookmarkStore((s) => s.mutationError)
   const mutationDialogOpen = useUIStore((s) =>
@@ -89,42 +76,7 @@ export function BookmarkGrid() {
       s.bookmarkOrganizerOpen
     )
   )
-  // Either capability means the adapter can express an order, which is all a
-  // folder-card drag needs — the card order itself is a client-local
-  // preference, never written through an adapter.
-  const canOrder = useBookmarkStore(
-    (s) =>
-      (s.adapter?.capabilities.reorder ?? true) ||
-      (s.adapter?.capabilities.setChildOrder ?? false)
-  )
   const display = useCardDisplay()
-  const { nestedFolders } = display
-  const maxColumns = usePreferencesStore((s) => s.maxColumns)
-  const containerMode = usePreferencesStore((s) => s.containerMode)
-  const folderOrder = usePreferencesStore((s) => s.folderOrder)
-  const experimentalCardDrag =
-    usePreferencesStore((s) => s.experimentalCardDrag) && canOrder
-
-  const columnCount = useColumnCount(maxColumns)
-  const displayRoot = rootFolder ?? (tree.length > 0 ? tree[0] : null)
-
-  const folders = React.useMemo(() => {
-    if (!displayRoot) return []
-
-    return getVisibleFolders({
-      displayRoot,
-      nestedFolders,
-      experimentalCardDrag,
-      folderOrder,
-      isTreeRoot: rootFolder === null,
-    })
-  }, [
-    displayRoot,
-    nestedFolders,
-    experimentalCardDrag,
-    folderOrder,
-    rootFolder,
-  ])
 
   const gateCards = React.useMemo(
     () => (displayRoot ? shouldGateCards(displayRoot) : false),
@@ -140,12 +92,13 @@ export function BookmarkGrid() {
   const { heights, measureRefs } = useMeasuredCardHeights(
     folders,
     columnCount,
-    display
+    display,
+    columnWidth
   )
 
   const columns = React.useMemo(
-    () => distributeToColumns(folders, columnCount, display, heights),
-    [folders, columnCount, display, heights]
+    () => distributeToColumns(folders, columnCount, display, heights, gap),
+    [folders, columnCount, display, heights, gap]
   )
 
   // The grid is one composite widget: `columns` is the visual order the arrow
@@ -169,13 +122,7 @@ export function BookmarkGrid() {
   }
 
   return (
-    <div
-      ref={autoScrollDashboard}
-      className={cn(
-        "w-full min-w-0",
-        containerMode === "contained" && "mx-auto max-w-[1440px]"
-      )}
-    >
+    <div ref={autoScrollDashboard} className="w-full min-w-0">
       <GridNavigationContext value={navigation}>
         {mutationError && !mutationDialogOpen && (
           <p role="alert" className="mb-3 text-sm text-destructive">
