@@ -103,7 +103,9 @@ jobs:
 
   daemon-e2e:
     name: Daemon end-to-end
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.59 has no Chromium for Ubuntu 26.04 (ubuntu-latest
+    # from October 2026). Unpin after upgrading Playwright.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -171,7 +173,8 @@ jobs:
 
   website:
     name: Marketing website
-    runs-on: ubuntu-latest
+    # Pinned for Playwright, as in the daemon end-to-end job.
+    runs-on: ubuntu-24.04
     # Matches the other Bun jobs. At 15 this job has already been killed
     # mid-`playwright install` on a change it had nothing to do with.
     timeout-minutes: 20
